@@ -1,3 +1,6 @@
+# TODO: mention
+# http://docs.aws.amazon.com/AmazonElastiCache/latest/UserGuide/ManagingCacheClusters.html#ManagingCacheClusters.SeedingRedis
+# When talking about the snapshot
 import boto.elasticache
 import boto.exception
 from boto.s3.key import Key
@@ -5,20 +8,24 @@ from boto.s3.key import Key
 # This prevents pylint from yelling at me
 __pillar__ = {}
 
+
 def create_or_modify_parameter_group(
     name,
-    region):
+        region):
     pass
+
 
 def create_parameter_group(
     name,
-    region):
+        region):
     pass
+
 
 def modify_parameter_group(
     name,
-    region):
+        region):
     pass
+
 
 def launch_or_modify(
     name,
@@ -45,7 +52,7 @@ def launch_or_modify(
     apply_immediately=None,
     test=False,
     aws_key=None,
-    aws_secret=None):
+        aws_secret=None):
 
     if aws_key is None:
         aws_key = __pillar__.get('aws', {}).get('key')
@@ -55,7 +62,6 @@ def launch_or_modify(
     if not aws_key or not aws_secret:
         raise TypeError("No aws credentials found! You need to define the "
                         "pillar values 'aws:key' and 'aws:secret'")
-
 
     ecconn = boto.elasticache.connect_to_region(
         region,
@@ -150,7 +156,7 @@ def launch(
     auto_minor_version_upgrade=True,
     aws_key=None,
     aws_secret=None,
-    ecconn=None):
+        ecconn=None):
 
     if aws_key is None:
         aws_key = __pillar__.get('aws', {}).get('key')
@@ -187,22 +193,22 @@ def launch(
             aws_secret_access_key=aws_secret)
 
     ecconn.create_cache_cluster(
-            name,
-            num_nodes,
-            node_type,
-            engine,
-            replication_group_id=replication_group,
-            engine_version=engine_version,
-            cache_parameter_group_name=parameter_group,
-            cache_subnet_group_name=subnet_group,
-            cache_security_group_names=cache_security_groups,
-            security_group_ids=security_group_ids,
-            snapshot_arns=snapshot_arns,
-            preferred_availability_zone=preferred_availability_zone,
-            preferred_maintenance_window=preferred_maintenance_window,
-            port=port,
-            notification_topic_arn=notification_topic_arn,
-            auto_minor_version_upgrade=auto_minor_version_upgrade)
+        name,
+        num_nodes,
+        node_type,
+        engine,
+        replication_group_id=replication_group,
+        engine_version=engine_version,
+        cache_parameter_group_name=parameter_group,
+        cache_subnet_group_name=subnet_group,
+        cache_security_group_names=cache_security_groups,
+        security_group_ids=security_group_ids,
+        snapshot_arns=snapshot_arns,
+        preferred_availability_zone=preferred_availability_zone,
+        preferred_maintenance_window=preferred_maintenance_window,
+        port=port,
+        notification_topic_arn=notification_topic_arn,
+        auto_minor_version_upgrade=auto_minor_version_upgrade)
 
 
 def modify(
@@ -210,7 +216,7 @@ def modify(
     region,
     engine_version=None,
     num_nodes=1,
-    replication_group=None, # Maybe we can't change this?
+    replication_group=None,  # Maybe we can't change this?
     cache_security_groups=None,
     security_group_ids=None,
     preferred_maintenance_window=None,
@@ -224,7 +230,7 @@ def modify(
     test=False,
     aws_key=None,
     aws_secret=None,
-    ecconn=None):
+        ecconn=None):
 
     if aws_key is None:
         aws_key = __pillar__.get('aws', {}).get('key')
@@ -247,7 +253,6 @@ def modify(
     cache = response['DescribeCacheClustersResponse']\
         ['DescribeCacheClustersResult']['CacheClusters']
 
-
     # Num nodes
     to_remove = None
 
@@ -264,41 +269,29 @@ def modify(
     if num_nodes > len(cache['CacheNodes']):
         changes['Added nodes'] = num_nodes - cache['CacheNodes']
 
-
     # TODO: Cache security group names
-
-
     # TODO: Security group ids
-
-
     # preferred_maintenance_window
     if preferred_maintenance_window is not None and \
-    preferred_maintenance_window != cache['PreferredMaintenanceWindow']:
+            preferred_maintenance_window != cache['PreferredMaintenanceWindow']:
         changes['Preferred maintenance window'] = \
-                "Changed to {0}".format(preferred_maintenance_window)
-
+            "Changed to {0}".format(preferred_maintenance_window)
 
     # TODO: Notification topic arn
-
-
     # Parameter group
     if parameter_group is not None and \
-    parameter_group != cache['CacheParameterGroup']:
+            parameter_group != cache['CacheParameterGroup']:
         changes['Parameter group'] = ("Changed to {0}".format(parameter_group))
 
-
     # TODO: Notification topic status
-
-
     # Engine version
     if engine_version is not None and \
-    engine_version != cache['EngineVersion']:
+            engine_version != cache['EngineVersion']:
         changes['EngineVersion'] = "Changed to {0}".format(engine_version)
-
 
     # Auto minor version upgrade
     if auto_minor_version_upgrade is not None and \
-    auto_minor_version_upgrade != cache['AutoMinorVersionUpgrade']:
+            auto_minor_version_upgrade != cache['AutoMinorVersionUpgrade']:
         changes['Auto minor version upgrade'] = ("Enabled" if
                                                  auto_minor_version_upgrade
                                                  else "Disabled")
@@ -320,12 +313,13 @@ def modify(
 
     return changes
 
+
 def delete(
     name,
     region,
     test=False,
     aws_key=None,
-    aws_secret=None):
+        aws_secret=None):
 
     if aws_key is None:
         aws_key = __pillar__.get('aws', {}).get('key')
@@ -351,23 +345,27 @@ def delete(
         else:
             raise
 
+
 def reboot(
     name,
     region,
-    nodes=None):
+        nodes=None):
     pass
+
 
 def create_replication_group(
     name,
-    region):
+        region):
     pass
+
 
 def modify_replication_group(
     name,
-    region):
+        region):
     pass
+
 
 def delete_replication_group(
     name,
-    region):
+        region):
     pass
