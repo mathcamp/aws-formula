@@ -1,2 +1,3 @@
 include:
-  - cloud.elb
+  - aws.elb
+  - aws.ec2

@@ -9,6 +9,7 @@ import boto.exception
 # This prevents pylint from yelling at me
 __pillar__ = {}
 
+
 def launch_or_modify(
     name,
     region,
@@ -22,7 +23,7 @@ def launch_or_modify(
     instances=None,
     test=False,
     aws_key=None,
-    aws_secret=None):
+        aws_secret=None):
     """
     Ensure an ELB exists with a certain configuration
 
@@ -121,9 +122,9 @@ def launch_or_modify(
     # Convert SSL certificate names into ARN
     iamconn = boto.connect_iam(aws_key, aws_secret)
     certs = iamconn.get_all_server_certs()\
-            ['list_server_certificates_response']\
-            ['list_server_certificates_result']\
-            ['server_certificate_metadata_list']
+        ['list_server_certificates_response']\
+        ['list_server_certificates_result']\
+        ['server_certificate_metadata_list']
     find_cert = lambda cert: filter(lambda c: c['server_certificate_name']
                                     == cert, certs)[0]['arn']
 
@@ -131,7 +132,6 @@ def launch_or_modify(
         for listener in listeners:
             if len(listener) == 5 and not listener[4].startswith('arn:'):
                 listener[4] = find_cert(listener[4])
-
 
     try:
         elbs = elbconn.get_all_load_balancers(load_balancer_names=[name])
@@ -151,11 +151,12 @@ def launch_or_modify(
         # Scheme
         if scheme != elb.scheme:
             raise ValueError("Scheme '{0}' is not '{1}', but scheme cannot be "
-                                "changed!".format(elb.scheme, scheme))
+                             "changed!".format(elb.scheme, scheme))
 
         modify(name, region, zones, listeners, subnets, security_groups,
                health_check, policies, instances, test, aws_key, aws_secret,
                elbconn, elb)
+
 
 def launch(
     name,
@@ -171,7 +172,7 @@ def launch(
     test=False,
     aws_key=None,
     aws_secret=None,
-    elbconn=None):
+        elbconn=None):
     """
     Launch an ELB
 
@@ -215,6 +216,7 @@ def launch(
                health_check, policies, instances, test, aws_key, aws_secret,
                elbconn, elb)
 
+
 def modify(
     name,
     region,
@@ -229,7 +231,7 @@ def modify(
     aws_key=None,
     aws_secret=None,
     elbconn=None,
-    elb=None):
+        elb=None):
     """
     Launch an ELB
 
@@ -281,7 +283,6 @@ def modify(
             for zone in to_add:
                 changes['Zone {0}'.format(zone)] = "Enabled"
 
-
     # Listeners
     elb_listeners = []
     # Convert the boto listeners to tuples
@@ -318,7 +319,6 @@ def modify(
                     elb.name, complex_listeners=list(to_create))
             changes['Listeners Created'] = str(list(to_create))
 
-
     # Subnets
     # TODO: This is untested because my account doesn't have VPC
     elb_subnets = list(elb.subnets)
@@ -335,7 +335,6 @@ def modify(
                 elb.attach_subnets(list(to_attach))
             changes['Subnets Attached'] = str(list(to_attach))
 
-
     # Security Groups
     # TODO: This is untested because my account doesn't have VPC
     elb_security_groups = list(elb.security_groups)
@@ -349,7 +348,6 @@ def modify(
             changes['Security Groups Added'] = str(list(to_add))
         if not test:
             elb.apply_security_groups(security_groups)
-
 
     # Health check
     if health_check is None:
@@ -376,7 +374,6 @@ def modify(
         if not test:
             elb.configure_health_check(new_check)
 
-
     # Instances
     if instances is not None:
         elb_instances = [i.id for i in elb.instances]
@@ -391,7 +388,6 @@ def modify(
                 changes['Instances Added'] = list(to_add)
                 if not test:
                     elb.register_instances(list(to_add))
-
 
     # Policies
     policies = policies or {}
@@ -409,13 +405,14 @@ def modify(
             policy['name'] = 'app' + str(hash(policy['cookie_name']))
         else:
             raise ValueError("Policy type '{0}' must be 'lb' or 'app'"
-                                .format(policy['name']))
+                             .format(policy['name']))
 
         if policy['name'] not in elb_policies:
             if not test:
                 if policy['type'] == 'lb':
-                    elb.create_cookie_stickiness_policy(policy['cookie_expire'],
-                                                        policy['name'])
+                    elb.create_cookie_stickiness_policy(
+                        policy['cookie_expire'],
+                        policy['name'])
                 elif policy['type'] == 'app':
                     elb.create_app_cookie_stickiness_policy(
                         policy['cookie_name'], policy['name'])
@@ -432,7 +429,7 @@ def modify(
                 if policy['name'] != listener.policy_names[0]:
                     if not test:
                         elb.set_policies_of_listener(port,
-                                                    [policy['name']])
+                                                     [policy['name']])
                     changes['Port {0:d}'.format(port)] = "Changed policy"
         else:
             if len(listener.policy_names) > 0:
@@ -442,12 +439,13 @@ def modify(
 
     return changes
 
+
 def delete(
     name,
     region,
     test=False,
     aws_key=None,
-    aws_secret=None):
+        aws_secret=None):
     """
     Ensure an ELB does not exist
 

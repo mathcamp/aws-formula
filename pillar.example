@@ -2,6 +2,8 @@ aws:
   key: my_amazon_key_id
   secret: my_amazon_secret_key
 
+  # ELB
+  ######################
   elbs:
     - name: MyElb
       region: us-west-1
@@ -43,4 +45,49 @@ aws:
 
   absent_elbs:
     - name: BadElb
+      region: us-west-1
+
+  # EC2
+  ######################
+  servers:
+    - name: webserver
+      region: us-west-1
+      key_name: mykey
+      ami: ami-fe002cbb
+      security_groups:
+        - default
+        - webserver
+      instance_type: t1.micro
+      termination_protection: true
+      placement: us-west-1a
+      block_device_map:
+        /dev/sdb:
+          ephemeral_name: ephemeral0
+
+    - name: webserver2
+      region: us-west-1
+      key_name: mykey
+      ami: ami-fe002cbb
+
+  servers_absent:
+    - name: old-webserver
+      region: us-west-1
+      force_termination: true
+
+  security_groups:
+    - name: webserver
+      region: us-west-1
+      description: Webservers
+      rules:
+        - ip_protocol: tcp
+          from_port: 80
+          to_port: 80
+          cidr_ip: 0.0.0.0/0
+        - ip_protocol: tcp
+          from_port: 8080
+          to_port: 8090
+          src_security_group: webserver
+
+  security_groups_absent:
+    - name: old-group
       region: us-west-1

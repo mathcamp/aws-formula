@@ -4,6 +4,9 @@ Summary
 
 The elb module is used to create and manage ELBs.
 
+Examples
+========
+
 .. code-block:: yaml
 
     .webserver-elb:
@@ -45,9 +48,7 @@ The elb module is used to create and manage ELBs.
         - name: bad-elb
         - region: us-west-1
 
-Notes
-=====
-Requires boto 2.12.0
+TODO: add simple state for adding/removing single server (for use with prereq)
 
 """
 import boto.ec2.elb
@@ -57,6 +58,7 @@ import boto.exception
 __opts__ = {}
 __pillar__ = {}
 __salt__ = {}
+
 
 def present(
     name,
@@ -68,7 +70,7 @@ def present(
     scheme=None,
     health_check=None,
     policies=None,
-    instances=None):
+        instances=None):
     """
     Ensure an ELB exists
 
@@ -80,7 +82,7 @@ def present(
            'result': True,
            'comment': 'No changes',
            'changes': {},
-            }
+           }
     try:
         changes = __salt__['elb.launch_or_modify'](
             name, region, zones, listeners, subnets, security_groups, scheme,
@@ -91,14 +93,14 @@ def present(
             else:
                 action = 'Launched'
             ret['comment'] = ("{0} ELB '{1}' in "
-                                "region '{2}'".format(action, name, region))
+                              "region '{2}'".format(action, name, region))
         elif changes:
             if __opts__['test']:
                 action = 'Will modify'
             else:
                 action = 'Modified'
             ret['comment'] = ("{0} ELB '{1}' in "
-                                "region '{2}'".format(action, name, region))
+                              "region '{2}'".format(action, name, region))
         ret['changes'] = changes
 
     except (TypeError, ValueError) as e:
@@ -108,6 +110,7 @@ def present(
         ret['result'] = False
         ret['comment'] = "{0}: {1}".format(e.code, e.message),
     return ret
+
 
 def absent(name, region):
     """
@@ -123,7 +126,7 @@ def absent(name, region):
            'result': True,
            'comment': 'No changes',
            'changes': {},
-            }
+           }
     try:
         changed = __salt__['elb.delete'](name, region, test=__opts__['test'])
         if changed:
