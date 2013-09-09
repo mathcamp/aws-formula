@@ -1,8 +1,7 @@
 """
 Summary
 =======
-
-The elb module is used to create and manage ELBs.
+This state is used to create and manage ELBs.
 
 Examples
 ========
@@ -10,7 +9,7 @@ Examples
 .. code-block:: yaml
 
     .webserver-elb:
-      elb.present:
+      elb.managed:
         - name: webserver-elb
         - region: us-west-1
         - zones:
@@ -60,7 +59,7 @@ __pillar__ = {}
 __salt__ = {}
 
 
-def present(
+def managed(
     name,
     region,
     zones,
@@ -92,16 +91,17 @@ def present(
                 action = 'Will launch'
             else:
                 action = 'Launched'
-            ret['comment'] = ("{0} ELB '{1}' in "
-                              "region '{2}'".format(action, name, region))
+            msg = "ELB '{0}' in region '{1}'".format(name, region)
+            ret['comment'] = action + ' ' + msg
+            ret['changes'][action] = msg
         elif changes:
             if __opts__['test']:
                 action = 'Will modify'
             else:
                 action = 'Modified'
-            ret['comment'] = ("{0} ELB '{1}' in "
-                              "region '{2}'".format(action, name, region))
-        ret['changes'] = changes
+            msg = "ELB '{0}' in region '{1}'".format(name, region)
+            ret['comment'] = action + ' ' + msg
+            ret['changes'] = changes
 
     except (TypeError, ValueError) as e:
         ret['result'] = False
@@ -134,8 +134,9 @@ def absent(name, region):
                 action = 'Will delete'
             else:
                 action = 'Deleted'
-            ret['comment'] = ("{0} ELB '{1}' in "
-                              "region '{2}'".format(action, name, region))
+            msg = "ELB '{0}' in region '{1}'".format(name, region)
+            ret['comment'] = action + ' ' + msg
+            ret['changes'][action] = msg
     except TypeError as e:
         ret['result'] = False
         ret['comment'] = e.message
