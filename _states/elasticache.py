@@ -17,6 +17,7 @@ Examples
         - engine: redis
         - engine_version: 2.6.13
         - num_nodes: 1
+        - preferred_availability_zone: us-west-1a
         - snapshot: my-bucket/path/to/backup.rdb
         - snapshot_optional: true
 
@@ -24,6 +25,20 @@ Examples
       elasticache.absent:
         - name: old-cache
         - region: us-west-1
+
+    .backup-group:
+      elasticache.replication_group:
+        - name: repl-group
+        - region: us-west-1
+        - primary: my-cache
+        - description: Backing up data
+
+    .backup-cache:
+      elasticache.replica:
+        - name: my-backup
+        - region: us-west-1
+        - replication_group: repl-group
+        - preferred_availability_zone: us-west-1c
 
     .my-parameters:
       elasticache.parameter_group:
@@ -126,7 +141,6 @@ def managed(
     engine,
     engine_version=None,
     num_nodes=1,
-    replication_group=None,
     subnet_group=None,
     cache_security_groups=None,
     security_group_ids=None,
@@ -136,7 +150,7 @@ def managed(
     preferred_maintenance_window=None,
     notification_topic_arn=None,
     notification_topic_status=None,
-    parameter_group=None,
+    parameter_group=None,  # pylint: disable=W0621
     port=None,
     auto_minor_version_upgrade=True,
     preserve_nodes=None,
@@ -150,13 +164,33 @@ def managed(
     """
     return _run_module('elasticache.manage',
                        'Cluster', name, region,
-                       name, region, node_type, engine, engine_version, num_nodes,
-                       replication_group, subnet_group, cache_security_groups,
+                       name, region, node_type, engine, engine_version,
+                       num_nodes, None, subnet_group, cache_security_groups,
                        security_group_ids, [snapshot], snapshot_optional,
-                       preferred_availability_zone, preferred_maintenance_window,
-                       notification_topic_arn, notification_topic_status, parameter_group,
-                       port, auto_minor_version_upgrade, preserve_nodes, remove_nodes,
-                       apply_immediately, __opts__['test'])
+                       preferred_availability_zone,
+                       preferred_maintenance_window, notification_topic_arn,
+                       notification_topic_status, parameter_group, port,
+                       auto_minor_version_upgrade, preserve_nodes,
+                       remove_nodes, apply_immediately, __opts__['test'])
+
+
+def replica(
+    name,
+    region,
+    replication_group,  # pylint: disable=W0621
+        preferred_availability_zone=None):
+    """
+    Ensure a replica Elasticache cluster exists
+
+    The arguments are the same as the ``elasticache.manage`` module
+
+    """
+    return _run_module('elasticache.manage',
+                       'Replica Cluster', name, region,
+                       name, region,
+                       replication_group=replication_group,
+                       preferred_availability_zone=preferred_availability_zone,
+                       test=__opts__['test'])
 
 
 def absent(
@@ -182,12 +216,13 @@ def parameter_group(
     Ensure an Elasticache parameter group exists
 
     The arguments are the same as the
-    ``elasticache.create_or_modify_parameter_group`` module
+    ``elasticache.manage_parameter_group`` module
 
     """
-    return _run_module('elasticache.create_or_modify_parameter_group',
+    return _run_module('elasticache.manage_parameter_group',
                        'Parameter group', name, region,
-                       name, region, family, description, parameters, __opts__['test'])
+                       name, region, family, description, parameters,
+                       __opts__['test'])
 
 
 def parameter_group_absent(
@@ -204,6 +239,13 @@ def security_group(
         region,
         description,
         authorized):
+    """
+    Ensure an Elasticache security group exists
+
+    The arguments are the same as the
+    ``elasticache.manage_security_group`` module
+
+    """
     return _run_module('elasticache.manage_security_group',
                        'Security group', name, region,
                        name, region, description, authorized, __opts__['test'])
@@ -212,6 +254,24 @@ def security_group(
 def security_group_absent(
         name,
         region):
+    """ Ensure an Elasticache security group does not exist """
     return _run_module('elasticache.delete_security_group',
                        'Security group', name, region,
                        name, region, __opts__['test'])
+
+
+def replication_group(
+    name,
+    region,
+    primary,
+        description):
+    """
+    Ensure an Elasticache replication group exists
+
+    The arguments are the same as the
+    ``elasticache.manage_replication_group`` module
+
+    """
+    return _run_module('elasticache.create_replication_group',
+                       'Replication group', name, region,
+                       name, region, primary, description, __opts__['test'])

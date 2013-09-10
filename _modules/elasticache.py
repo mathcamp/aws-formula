@@ -13,6 +13,7 @@ __pillar__ = {}
 
 
 def _creds(aws_key=None, aws_secret=None):
+    """ Convenience method for retrieving AWS credentials """
     if aws_key is None:
         aws_key = __pillar__.get('aws', {}).get('key')
     if aws_secret is None:
@@ -200,7 +201,7 @@ def manage(
 
         changes = modify(
             name, region, engine_version, num_nodes,
-            replication_group, cache_security_groups, security_group_ids,
+            cache_security_groups, security_group_ids,
             preferred_maintenance_window, notification_topic_arn,
             notification_topic_status, parameter_group,
             auto_minor_version_upgrade, preserve_nodes, remove_nodes,
@@ -276,23 +277,36 @@ def launch(
             aws_access_key_id=aws_key,
             aws_secret_access_key=aws_secret)
 
-    ecconn.create_cache_cluster(
-        name,
-        num_nodes,
-        node_type,
-        engine,
-        replication_group_id=replication_group,
-        engine_version=engine_version,
-        cache_parameter_group_name=parameter_group,
-        cache_subnet_group_name=subnet_group,
-        cache_security_group_names=cache_security_groups,
-        security_group_ids=security_group_ids,
-        snapshot_arns=snapshots,
-        preferred_availability_zone=preferred_availability_zone,
-        preferred_maintenance_window=preferred_maintenance_window,
-        port=port,
-        notification_topic_arn=notification_topic_arn,
-        auto_minor_version_upgrade=auto_minor_version_upgrade)
+    if replication_group is not None:
+        params = {
+            'CacheClusterId': name,
+            'ReplicationGroupId': replication_group,
+            'PreferredAvailabilityZone': preferred_availability_zone,
+        }
+        # This is a temporary hack around boto's broken API
+        ecconn._make_request(
+            action='CreateCacheCluster',
+            verb='POST',
+            path='/', params=params)
+
+    else:
+        ecconn.create_cache_cluster(
+            name,
+            num_nodes,
+            node_type,
+            engine,
+            replication_group_id=replication_group,
+            engine_version=engine_version,
+            cache_parameter_group_name=parameter_group,
+            cache_subnet_group_name=subnet_group,
+            cache_security_group_names=cache_security_groups,
+            security_group_ids=security_group_ids,
+            snapshot_arns=snapshots,
+            preferred_availability_zone=preferred_availability_zone,
+            preferred_maintenance_window=preferred_maintenance_window,
+            port=port,
+            notification_topic_arn=notification_topic_arn,
+            auto_minor_version_upgrade=auto_minor_version_upgrade)
 
 
 def modify(
@@ -300,7 +314,6 @@ def modify(
     region,
     engine_version=None,
     num_nodes=1,
-    replication_group=None,  # Maybe we can't change this?
     cache_security_groups=None,
     security_group_ids=None,
     preferred_maintenance_window=None,
@@ -425,6 +438,8 @@ def delete(
     try:
         ecconn.describe_cache_clusters(name)
         if not test:
+            # TODO: If this is the primary of a replication group, you need to
+            # delete that
             ecconn.delete_cache_cluster(name)
         return True
     except boto.exception.BotoServerError as e:
@@ -436,7 +451,7 @@ def delete(
             raise
 
 
-def create_or_modify_parameter_group(
+def manage_parameter_group(
     name,
     region,
     family,
@@ -786,7 +801,8 @@ def modify_security_group(
             authorized[i] = (item, int(ec2_group_map[item].owner_id))
 
     groups_authorized = [(g['EC2SecurityGroupName'],
-                          int(g['EC2SecurityGroupOwnerId'])) for g in group['EC2SecurityGroups']]
+                          int(g['EC2SecurityGroupOwnerId'])) for g in
+                         group['EC2SecurityGroups']]
 
     to_add = set(authorized) - set(groups_authorized)
     to_remove = set(groups_authorized) - set(authorized)
@@ -845,6 +861,64 @@ def delete_security_group(
         return True
 
 
+def create_replication_group(
+    name,
+    region,
+    primary,
+    description,
+    test=False,
+    aws_key=None,
+        aws_secret=None):
+    """
+    Create a Replication Group
+
+    Parameters
+    ----------
+    name : str
+        The name of the replication group
+    region : str
+        The AWS region to contain the replication group
+    primary : str
+        The name of the ElastiCache cluster to replicate from
+    description : str
+        Human-readable description of the group
+    test : bool, optional
+        If true, don't actually perform any changes
+    aws_key : str, optional
+        The access key id for AWS. May also be specified as 'aws:key' in a
+        pillar.
+    aws_secret : str, optional
+        The secret access key for AWS. May also be specified as 'aws:secret' in
+        a pillar.
+
+    """
+    aws_key, aws_secret = _creds(aws_key, aws_secret)
+
+    ecconn = boto.elasticache.connect_to_region(
+        region,
+        aws_access_key_id=aws_key,
+        aws_secret_access_key=aws_secret)
+
+    group = None
+    try:
+        response = ecconn.describe_replication_groups(name)
+        group = response['DescribeReplicationGroupsResponse']\
+                        ['DescribeReplicationGroupsResult']\
+                        ['ReplicationGroups'][0]
+    except boto.exception.BotoServerError as e:
+        if e.code is None:
+            exc = json.loads(e.message)
+        e.code = exc.get('Error', {}).get('Code')
+        if e.code != 'ReplicationGroupNotFoundFault':
+            raise
+
+    if group is None:
+        if not test:
+
+            ecconn.create_replication_group(name, primary, description)
+        return {'action': 'create'}
+
+
 def reboot(
     name,
     region,
@@ -862,32 +936,4 @@ def reboot(
         List of node ids to reboot
 
     """
-    # TODO:
-
-
-def create_or_modify_replication_group(
-        name,
-        region):
-    pass
-    # TODO
-
-
-def create_replication_group(
-    name,
-        region):
-    pass
-    # TODO:
-
-
-def modify_replication_group(
-    name,
-        region):
-    pass
-    # TODO:
-
-
-def delete_replication_group(
-    name,
-        region):
-    pass
     # TODO:

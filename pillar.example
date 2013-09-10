@@ -102,12 +102,25 @@ aws:
       engine: redis
       engine_version: 2.6.13
       num_nodes: 1
+      preferred_availability_zone: us-west-1a
       snapshot: my-bucket/path/to/backup.rdb
       snapshot_optional: true
 
   absent_elasticaches:
     - name: old-cache
       region: us-west-1
+
+  elasticache_replication_groups:
+    - name: repl-group
+      region: us-west-1
+      primary: my-cache
+      description: Backing up data
+
+  elasticache_replicas:
+    - name: my-backup
+      region: us-west-1
+      replication_group: repl-group
+      preferred_availability_zone: us-west-1c
 
   elasticache_parameter_groups:
     - name: myparameters
