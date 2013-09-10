@@ -11,7 +11,20 @@ from boto.s3.key import Key
 # This prevents pylint from yelling at me
 __pillar__ = {}
 
-def launch_or_modify(
+
+def _creds(aws_key=None, aws_secret=None):
+    if aws_key is None:
+        aws_key = __pillar__.get('aws', {}).get('key')
+    if aws_secret is None:
+        aws_secret = __pillar__.get('aws', {}).get('secret')
+
+    if not aws_key or not aws_secret:
+        raise TypeError("No aws credentials found! You need to define the "
+                        "pillar values 'aws:key' and 'aws:secret'")
+    return aws_key, aws_secret
+
+
+def manage(
     name,
     region,
     node_type,
@@ -118,7 +131,7 @@ def launch_or_modify(
     -------
     changes : dict
         The changes dict plus an additional key named 'action'. The 'action'
-        will either be 'launch' or 'modify'.
+        will either be 'create' or 'modify'.
 
     Notes
     -----
@@ -126,14 +139,7 @@ def launch_or_modify(
     http://boto.readthedocs.org/en/latest/ref/elasticache.html#boto.elasticache.layer1.ElastiCacheConnection.create_cache_cluster
 
     """
-    if aws_key is None:
-        aws_key = __pillar__.get('aws', {}).get('key')
-    if aws_secret is None:
-        aws_secret = __pillar__.get('aws', {}).get('secret')
-
-    if not aws_key or not aws_secret:
-        raise TypeError("No aws credentials found! You need to define the "
-                        "pillar values 'aws:key' and 'aws:secret'")
+    aws_key, aws_secret = _creds(aws_key, aws_secret)
 
     ecconn = boto.elasticache.connect_to_region(
         region,
@@ -164,7 +170,7 @@ def launch_or_modify(
                    notification_topic_arn, parameter_group, port,
                    auto_minor_version_upgrade, aws_key, aws_secret, ecconn)
 
-        return {'action': 'launch'}
+        return {'action': 'create'}
     else:
         # Modify cache
         if engine != cache['Engine']:
@@ -189,8 +195,8 @@ def launch_or_modify(
             for node in nodes:
                 if port != node['Endpoint']['Port']:
                     raise ValueError("Port '{0}' is not '{1:d}', but port "
-                                    "cannot be changed!"
-                                    .format(node['Endpoint']['Port'], port))
+                                     "cannot be changed!"
+                                     .format(node['Endpoint']['Port'], port))
 
         changes = modify(
             name, region, engine_version, num_nodes,
@@ -228,17 +234,10 @@ def launch(
     """
     Launch an Elasticache cluster
 
-    Most arguments are the same as :meth:`.launch_or_modify`
+    Most arguments are the same as :meth:`.manage`
 
     """
-    if aws_key is None:
-        aws_key = __pillar__.get('aws', {}).get('key')
-    if aws_secret is None:
-        aws_secret = __pillar__.get('aws', {}).get('secret')
-
-    if not aws_key or not aws_secret:
-        raise TypeError("No aws credentials found! You need to define the "
-                        "pillar values 'aws:key' and 'aws:secret'")
+    aws_key, aws_secret = _creds(aws_key, aws_secret)
 
     if snapshots is not None:
         if snapshot_optional:
@@ -259,7 +258,7 @@ def launch(
                     can_read = False
                     for grant in acl.grants:
                         if grant.permission.lower() == 'read' and \
-                        grant.email_address == 'aws-scs-s3-readonly@amazon.com':
+                                grant.email_address == 'aws-scs-s3-readonly@amazon.com':
                             can_read = True
                             break
                     if not can_read:
@@ -319,18 +318,10 @@ def modify(
     """
     Modify an Elasticache cluster
 
-    Most arguments are the same as :meth:`.launch_or_modify`
+    Most arguments are the same as :meth:`.manage`
 
     """
-
-    if aws_key is None:
-        aws_key = __pillar__.get('aws', {}).get('key')
-    if aws_secret is None:
-        aws_secret = __pillar__.get('aws', {}).get('secret')
-
-    if not aws_key or not aws_secret:
-        raise TypeError("No aws credentials found! You need to define the "
-                        "pillar values 'aws:key' and 'aws:secret'")
+    aws_key, aws_secret = _creds(aws_key, aws_secret)
 
     if ecconn is None:
         ecconn = boto.elasticache.connect_to_region(
@@ -421,18 +412,10 @@ def delete(
     """
     Delete an Elasticache cluster
 
-    Most arguments are the same as :meth:`.launch_or_modify`
+    Most arguments are the same as :meth:`.manage`
 
     """
-
-    if aws_key is None:
-        aws_key = __pillar__.get('aws', {}).get('key')
-    if aws_secret is None:
-        aws_secret = __pillar__.get('aws', {}).get('secret')
-
-    if not aws_key or not aws_secret:
-        raise TypeError("No aws credentials found! You need to define the "
-                        "pillar values 'aws:key' and 'aws:secret'")
+    aws_key, aws_secret = _creds(aws_key, aws_secret)
 
     ecconn = boto.elasticache.connect_to_region(
         region,
@@ -461,7 +444,7 @@ def create_or_modify_parameter_group(
     parameters,
     test=False,
     aws_key=None,
-    aws_secret=None):
+        aws_secret=None):
     """
     Create a parameter group or put it in the right state
 
@@ -505,14 +488,7 @@ def create_or_modify_parameter_group(
     http://docs.aws.amazon.com/AmazonElastiCache/latest/UserGuide/CacheParameterGroups.Redis.html
 
     """
-    if aws_key is None:
-        aws_key = __pillar__.get('aws', {}).get('key')
-    if aws_secret is None:
-        aws_secret = __pillar__.get('aws', {}).get('secret')
-
-    if not aws_key or not aws_secret:
-        raise TypeError("No aws credentials found! You need to define the "
-                        "pillar values 'aws:key' and 'aws:secret'")
+    aws_key, aws_secret = _creds(aws_key, aws_secret)
 
     ecconn = boto.elasticache.connect_to_region(
         region,
@@ -536,11 +512,11 @@ def create_or_modify_parameter_group(
     if group is None:
         if not test:
             create_parameter_group(name, region, family, description,
-                    parameters, aws_key, aws_secret, ecconn)
+                                   parameters, aws_key, aws_secret, ecconn)
         return {'action': 'create'}
     else:
         changes = modify_parameter_group(name, region, parameters, test,
-                aws_key, aws_secret, ecconn, group)
+                                         aws_key, aws_secret, ecconn, group)
         changes['action'] = 'modify'
         return changes
 
@@ -553,21 +529,14 @@ def create_parameter_group(
     parameters,
     aws_key=None,
     aws_secret=None,
-    ecconn=None):
+        ecconn=None):
     """
     Create an Elasticache parameter group
 
     Most arguments are the same as :meth:`.create_or_modify_parameter_group`
 
     """
-    if aws_key is None:
-        aws_key = __pillar__.get('aws', {}).get('key')
-    if aws_secret is None:
-        aws_secret = __pillar__.get('aws', {}).get('secret')
-
-    if not aws_key or not aws_secret:
-        raise TypeError("No aws credentials found! You need to define the "
-                        "pillar values 'aws:key' and 'aws:secret'")
+    aws_key, aws_secret = _creds(aws_key, aws_secret)
 
     if ecconn is None:
         ecconn = boto.elasticache.connect_to_region(
@@ -578,7 +547,7 @@ def create_parameter_group(
     ecconn.create_cache_parameter_group(name, family, description)
 
     modify_parameter_group(name, region, parameters, False, aws_key,
-            aws_secret, ecconn)
+                           aws_secret, ecconn)
 
 
 def modify_parameter_group(
@@ -589,21 +558,14 @@ def modify_parameter_group(
     aws_key=None,
     aws_secret=None,
     ecconn=None,
-    group=None):
+        group=None):
     """
     Modify an Elasticache parameter group
 
     Most arguments are the same as :meth:`.create_or_modify_parameter_group`
 
     """
-    if aws_key is None:
-        aws_key = __pillar__.get('aws', {}).get('key')
-    if aws_secret is None:
-        aws_secret = __pillar__.get('aws', {}).get('secret')
-
-    if not aws_key or not aws_secret:
-        raise TypeError("No aws credentials found! You need to define the "
-                        "pillar values 'aws:key' and 'aws:secret'")
+    aws_key, aws_secret = _creds(aws_key, aws_secret)
 
     if len(parameters) == 0:
         return
@@ -630,7 +592,7 @@ def modify_parameter_group(
                 val = 'yes'
             elif val is False:
                 val = 'no'
-            elif type(val) is int:
+            elif isinstance(val, int):
                 val = str(val)
 
             if val != param['ParameterValue']:
@@ -645,26 +607,20 @@ def modify_parameter_group(
 
     return changes
 
+
 def delete_parameter_group(
     name,
     region,
     test=False,
     aws_key=None,
-    aws_secret=None):
+        aws_secret=None):
     """
     Delete an Elasticache parameter group
 
     Most arguments are the same as :meth:`.create_or_modify_parameter_group`
 
     """
-    if aws_key is None:
-        aws_key = __pillar__.get('aws', {}).get('key')
-    if aws_secret is None:
-        aws_secret = __pillar__.get('aws', {}).get('secret')
-
-    if not aws_key or not aws_secret:
-        raise TypeError("No aws credentials found! You need to define the "
-                        "pillar values 'aws:key' and 'aws:secret'")
+    aws_key, aws_secret = _creds(aws_key, aws_secret)
 
     ecconn = boto.elasticache.connect_to_region(
         region,
@@ -688,6 +644,205 @@ def delete_parameter_group(
         if not test:
             ecconn.delete_cache_parameter_group(name)
             return True
+
+
+def manage_security_group(
+        name,
+        region,
+        description,
+        authorized=(),
+        test=False,
+        aws_key=None,
+        aws_secret=None):
+    """
+    Create a Cache Security Group and set the ACL
+
+    Parameters
+    ----------
+    name : str
+        The name of the cache security group
+    region : str
+        The AWS region that contains the cache security group
+    description : str
+        Human-readable description
+    authorized : list
+        List of items. Each item is either the name of an EC2 security group,
+        or it is a (name, owner_id) tuple for an EC2 security group.
+    test : bool, optional
+        If true, don't actually perform any changes
+    aws_key : str, optional
+        The access key id for AWS. May also be specified as 'aws:key' in a
+        pillar.
+    aws_secret : str, optional
+        The secret access key for AWS. May also be specified as 'aws:secret' in
+        a pillar.
+
+    Returns
+    -------
+    changes : dict
+        The changes dict plus an additional key named 'action'. The 'action'
+        will either be 'create' or 'modify'.
+
+    """
+
+    aws_key, aws_secret = _creds(aws_key, aws_secret)
+
+    ecconn = boto.elasticache.connect_to_region(
+        region,
+        aws_access_key_id=aws_key,
+        aws_secret_access_key=aws_secret)
+
+    group = None
+    try:
+        response = ecconn.describe_cache_security_groups(name)
+        group = response['DescribeCacheSecurityGroupsResponse']\
+                        ['DescribeCacheSecurityGroupsResult']\
+                        ['CacheSecurityGroups'][0]
+    except boto.exception.BotoServerError as e:
+        if e.code is None:
+            exc = json.loads(e.message)
+        e.code = exc.get('Error', {}).get('Code')
+        if e.code != 'CacheSecurityGroupNotFound':
+            raise
+
+    if group is None:
+        if not test:
+            create_security_group(name, region, description, authorized,
+                                  aws_key, aws_secret, ecconn)
+        return {'action': 'create'}
+    else:
+        changes = modify_security_group(name, region, authorized, test,
+                                        aws_key, aws_secret, ecconn)
+        changes['action'] = 'modify'
+        return changes
+
+
+def create_security_group(
+        name,
+        region,
+        description,
+        authorized=(),
+        aws_key=None,
+        aws_secret=None,
+        ecconn=None):
+    """
+    Create a Cache Security Group
+
+    Most arguments are the same as :meth:`.manage_security_group`
+
+    """
+    aws_key, aws_secret = _creds(aws_key, aws_secret)
+
+    if ecconn is None:
+        ecconn = boto.elasticache.connect_to_region(
+            region,
+            aws_access_key_id=aws_key,
+            aws_secret_access_key=aws_secret)
+
+    ecconn.create_cache_security_group(name, description)
+
+    modify_security_group(name, region, authorized, False, aws_key, aws_secret,
+                          ecconn)
+
+
+def modify_security_group(
+        name,
+        region,
+        authorized=(),
+        test=False,
+        aws_key=None,
+        aws_secret=None,
+        ecconn=None):
+    """
+    Modify a Cache Security Group
+
+    Most arguments are the same as :meth:`.manage_security_group`
+
+    """
+    aws_key, aws_secret = _creds(aws_key, aws_secret)
+
+    if ecconn is None:
+        ecconn = boto.elasticache.connect_to_region(
+            region,
+            aws_access_key_id=aws_key,
+            aws_secret_access_key=aws_secret)
+    ec2conn = boto.ec2.connect_to_region(
+        region,
+        aws_access_key_id=aws_key,
+        aws_secret_access_key=aws_secret)
+
+    changes = {}
+
+    response = ecconn.describe_cache_security_groups(name)
+    group = response['DescribeCacheSecurityGroupsResponse']\
+                    ['DescribeCacheSecurityGroupsResult']\
+                    ['CacheSecurityGroups'][0]
+
+    ec2_groups = ec2conn.get_all_security_groups()
+    ec2_group_map = {g.name: g for g in ec2_groups}
+    for i, item in enumerate(list(authorized)):
+        # Find the owner_id if necessary
+        if isinstance(item, basestring):
+            authorized[i] = (item, int(ec2_group_map[item].owner_id))
+
+    groups_authorized = [(g['EC2SecurityGroupName'],
+                          int(g['EC2SecurityGroupOwnerId'])) for g in group['EC2SecurityGroups']]
+
+    to_add = set(authorized) - set(groups_authorized)
+    to_remove = set(groups_authorized) - set(authorized)
+
+    if to_add:
+        changes['Allow'] = [g[0] for g in to_add]
+        if not test:
+            for ec2_name, owner_id in to_add:
+                ecconn.authorize_cache_security_group_ingress(name, ec2_name,
+                                                              owner_id)
+
+    if to_remove:
+        changes['Revoke'] = [g[0] for g in to_remove]
+        if not test:
+            for ec2_name, owner_id in to_remove:
+                ecconn.revoke_cache_security_group_ingress(name, ec2_name,
+                                                           owner_id)
+
+    return changes
+
+
+def delete_security_group(
+        name,
+        region,
+        test=None,
+        aws_key=None,
+        aws_secret=None):
+    """
+    Delete a Cache Security Group
+
+    Most arguments are the same as :meth:`.manage_security_group`
+
+    """
+    aws_key, aws_secret = _creds(aws_key, aws_secret)
+
+    ecconn = boto.elasticache.connect_to_region(
+        region,
+        aws_access_key_id=aws_key,
+        aws_secret_access_key=aws_secret)
+
+    try:
+        response = ecconn.describe_cache_security_groups(name)
+        group = response['DescribeCacheSecurityGroupsResponse']\
+                        ['DescribeCacheSecurityGroupsResult']\
+                        ['CacheSecurityGroups'][0]
+    except boto.exception.BotoServerError as e:
+        if e.code is None:
+            exc = json.loads(e.message)
+        e.code = exc.get('Error', {}).get('Code')
+        if e.code != 'CacheSecurityGroupNotFound':
+            raise
+
+    if group is not None:
+        if not test:
+            ecconn.delete_cache_security_group(name)
+        return True
 
 
 def reboot(
@@ -719,7 +874,7 @@ def create_or_modify_replication_group(
 
 def create_replication_group(
     name,
-    region):
+        region):
     pass
     # TODO:
 
@@ -736,29 +891,3 @@ def delete_replication_group(
         region):
     pass
     # TODO:
-
-
-def manage_security_group(
-        name,
-        region):
-    pass
-    # TODO
-
-def create_security_group(
-        name,
-        region):
-    pass
-    # TODO
-
-def modify_security_group(
-        name,
-        region):
-    pass
-    # TODO
-
-def delete_security_group(
-        name,
-        region):
-    pass
-    # TODO
-

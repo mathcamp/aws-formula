@@ -109,8 +109,8 @@ aws:
     - name: old-cache
       region: us-west-1
 
-  elasticache_security_groups:
-    - name: mygroup
+  elasticache_parameter_groups:
+    - name: myparameters
       region: us-west-1
       family: redis2.6
       description: My test group
@@ -118,6 +118,18 @@ aws:
         databases: 32
         maxmemory-policy: noeviction
         appendonly: true
+
+  absent_elasticache_parameter_groups:
+    - name: oldparameters
+      region: us-west-1
+
+  elasticache_security_groups:
+    - name: mygroup
+      region: us-west-1
+      description: My security group
+      authorized:
+        - ec2_security_group
+        - [ec2_security_group2, 123456789]
 
   absent_elasticache_security_groups:
     - name: oldgroup
