@@ -1,7 +1,7 @@
 #!pydsl
 
 for elb in __pillar__.get('aws', {}).get('elbs', []):
-    state('elb-' + elb['name']).elb.managed(
+    state('elb-' + elb['name']).elb.present(
         name=elb['name'],
         region=elb['region'],
         zones=elb['zones'],
