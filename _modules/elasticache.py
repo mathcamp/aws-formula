@@ -32,7 +32,6 @@ def manage(
     engine,
     engine_version=None,
     num_nodes=1,
-    replication_group=None,
     subnet_group=None,
     cache_security_groups=None,
     security_group_ids=None,
@@ -69,7 +68,6 @@ def manage(
         The version number of the cache engine to be used for this cluster
     num_nodes : int, optional
         The number of nodes that should be present in the cluster
-    replication_group : str, optional
     subnet_group : str, optional
         The name of the cache subnet group to be used for the cache cluster.
     cache_security_groups : list, optional
@@ -165,11 +163,11 @@ def manage(
         # Create cache
         if not test:
             launch(name, region, node_type, engine, engine_version, num_nodes,
-                   replication_group, subnet_group, cache_security_groups,
-                   security_group_ids, snapshots, snapshot_optional,
-                   preferred_availability_zone, preferred_maintenance_window,
-                   notification_topic_arn, parameter_group, port,
-                   auto_minor_version_upgrade, aws_key, aws_secret, ecconn)
+                   subnet_group, cache_security_groups, security_group_ids,
+                   snapshots, snapshot_optional, preferred_availability_zone,
+                   preferred_maintenance_window, notification_topic_arn,
+                   parameter_group, port, auto_minor_version_upgrade, aws_key,
+                   aws_secret, ecconn)
 
         return {'action': 'create'}
     else:
@@ -210,6 +208,66 @@ def manage(
         return changes
 
 
+def launch_replica(
+    name,
+    region,
+    replication_group,
+    preferred_availability_zone=None,
+    test=None,
+    aws_key=None,
+        aws_secret=None):
+    """
+    Launch an Elasticache replica redis cluster
+
+    Parameters
+    ----------
+    name : str
+        The name of the cluster
+    region : str
+        The AWS region to launch in
+    replication_group : str
+        The name of the replication group to add the cluster to
+    preferred_availability_zone : str, optional
+        The EC2 Availability Zone in which the cluster will be created
+
+    """
+    aws_key, aws_secret = _creds(aws_key, aws_secret)
+
+    ecconn = boto.elasticache.connect_to_region(
+        region,
+        aws_access_key_id=aws_key,
+        aws_secret_access_key=aws_secret)
+
+    cache = None
+    try:
+        response = ecconn.describe_cache_clusters(name)
+        cache = response['DescribeCacheClustersResponse']\
+            ['DescribeCacheClustersResult']['CacheClusters'][0]
+    except boto.exception.BotoServerError as e:
+        if e.code is None:
+            exc = json.loads(e.message)
+            e.code = exc.get('Error', {}).get('Code')
+        if e.code != 'CacheClusterNotFound':
+            raise
+
+    if cache is None:
+        if not test:
+            params = {
+                'CacheClusterId': name,
+                'ReplicationGroupId': replication_group,
+            }
+            if preferred_availability_zone is not None:
+                params['PreferredAvailabilityZone'] = \
+                    preferred_availability_zone
+            # This is a temporary hack around boto's broken API
+            ecconn._make_request(
+                action='CreateCacheCluster',
+                verb='POST',
+                path='/', params=params)
+        return {'action': 'create'}
+    return {'action': 'noop'}
+
+
 def launch(
     name,
     region,
@@ -217,7 +275,6 @@ def launch(
     engine,
     engine_version=None,
     num_nodes=1,
-    replication_group=None,
     subnet_group=None,
     cache_security_groups=None,
     security_group_ids=None,
@@ -277,36 +334,22 @@ def launch(
             aws_access_key_id=aws_key,
             aws_secret_access_key=aws_secret)
 
-    if replication_group is not None:
-        params = {
-            'CacheClusterId': name,
-            'ReplicationGroupId': replication_group,
-            'PreferredAvailabilityZone': preferred_availability_zone,
-        }
-        # This is a temporary hack around boto's broken API
-        ecconn._make_request(
-            action='CreateCacheCluster',
-            verb='POST',
-            path='/', params=params)
-
-    else:
-        ecconn.create_cache_cluster(
-            name,
-            num_nodes,
-            node_type,
-            engine,
-            replication_group_id=replication_group,
-            engine_version=engine_version,
-            cache_parameter_group_name=parameter_group,
-            cache_subnet_group_name=subnet_group,
-            cache_security_group_names=cache_security_groups,
-            security_group_ids=security_group_ids,
-            snapshot_arns=snapshots,
-            preferred_availability_zone=preferred_availability_zone,
-            preferred_maintenance_window=preferred_maintenance_window,
-            port=port,
-            notification_topic_arn=notification_topic_arn,
-            auto_minor_version_upgrade=auto_minor_version_upgrade)
+    ecconn.create_cache_cluster(
+        name,
+        num_nodes,
+        node_type,
+        engine,
+        engine_version=engine_version,
+        cache_parameter_group_name=parameter_group,
+        cache_subnet_group_name=subnet_group,
+        cache_security_group_names=cache_security_groups,
+        security_group_ids=security_group_ids,
+        snapshot_arns=snapshots,
+        preferred_availability_zone=preferred_availability_zone,
+        preferred_maintenance_window=preferred_maintenance_window,
+        port=port,
+        notification_topic_arn=notification_topic_arn,
+        auto_minor_version_upgrade=auto_minor_version_upgrade)
 
 
 def modify(
@@ -917,6 +960,7 @@ def create_replication_group(
 
             ecconn.create_replication_group(name, primary, description)
         return {'action': 'create'}
+    return {'action': 'noop'}
 
 
 def reboot(
