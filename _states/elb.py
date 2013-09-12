@@ -1,6 +1,4 @@
 """
-Summary
-=======
 This state is used to create and manage ELBs.
 
 Examples

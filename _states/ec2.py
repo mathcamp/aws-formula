@@ -1,7 +1,4 @@
 """
-Summary
-=======
-
 This module is used to create and manage EC2 instances and security groups
 
 Examples

@@ -488,9 +488,8 @@ def delete(
     except boto.exception.BotoServerError as e:
         if e.code is None:
             exc = json.loads(e.message)
-            if exc.get('Error', {}).get('Code') != 'CacheClusterNotFound':
-                raise
-        elif e.code != 'CacheClusterNotFound':
+            e.code = exc.get('Error', {}).get('Code')
+        if e.code != 'CacheClusterNotFound':
             raise
 
 

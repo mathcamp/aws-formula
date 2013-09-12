@@ -1,5 +1,7 @@
 #!pydsl
 
+# TODO: security groups can have cycles if they depend on each other
+
 __pydsl__.set(ordered=True)
 
 for group in __pillar__.get('aws', {}).get('security_groups', []):

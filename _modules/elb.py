@@ -85,6 +85,7 @@ def launch_or_modify(
     instances : list, optional
         List of instance ids that should be attached to the ELB. If this
         argument is None or unspecified, no instances will be added or removed.
+        TODO: allow server names here
     test : bool, optional
         If true, don't actually perform any changes
     aws_key : str, optional
