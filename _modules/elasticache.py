@@ -41,6 +41,14 @@ def _ec2conn(region, aws_key=None, aws_secret=None):
         aws_access_key_id=aws_key,
         aws_secret_access_key=aws_secret)
 
+
+def _s3conn( aws_key=None, aws_secret=None):
+    """ Convenience method for constructing an s3 connection """
+    aws_key, aws_secret = _creds(aws_key, aws_secret)
+    return boto.connect_s3(aws_access_key_id=aws_key,
+                           aws_secret_access_key=aws_secret)
+
+
 def get_cache_cluster(
     name,
     region,
@@ -314,8 +322,7 @@ def launch(
 
     if snapshots is not None:
         if snapshot_optional:
-            s3conn = boto.connect_s3(aws_access_key_id=aws_key,
-                                     aws_secret_access_key=aws_secret)
+            s3conn = _s3conn(aws_key, aws_secret)
             # If the snapshot doesn't exist, ignore it
             i = 0
             while i < len(snapshots):
