@@ -11,7 +11,6 @@ from boto.s3.key import Key
 # This prevents pylint from yelling at me
 __pillar__ = {}
 
-
 def _creds(aws_key=None, aws_secret=None):
     """ Convenience method for retrieving AWS credentials """
     if aws_key is None:
@@ -23,6 +22,53 @@ def _creds(aws_key=None, aws_secret=None):
         raise TypeError("No aws credentials found! You need to define the "
                         "pillar values 'aws:key' and 'aws:secret'")
     return aws_key, aws_secret
+
+
+def _ecconn(region, aws_key=None, aws_secret=None):
+    """ Convenience method for constructing an elasticache connection """
+    aws_key, aws_secret = _creds(aws_key, aws_secret)
+    return boto.elasticache.connect_to_region(
+        region,
+        aws_access_key_id=aws_key,
+        aws_secret_access_key=aws_secret)
+
+
+def _ec2conn(region, aws_key=None, aws_secret=None):
+    """ Convenience method for constructing an ec2 connection """
+    aws_key, aws_secret = _creds(aws_key, aws_secret)
+    return boto.ec2.connect_to_region(
+        region,
+        aws_access_key_id=aws_key,
+        aws_secret_access_key=aws_secret)
+
+def get_cache_cluster(
+    name,
+    region,
+    aws_key=None,
+    aws_secret=None,
+    ecconn=None):
+    """
+    Convenience method for retrieving a cache cluster
+
+    """
+    if ecconn is None:
+        ecconn = _ecconn(region, aws_key, aws_secret)
+
+    cache = None
+    try:
+        response = ecconn.describe_cache_clusters(name,
+                                                  show_cache_node_info=True)
+        cache = response['DescribeCacheClustersResponse']\
+            ['DescribeCacheClustersResult']['CacheClusters'][0]
+    except boto.exception.BotoServerError as e:
+        if e.code is None:
+            exc = json.loads(e.message)
+            if exc.get('Error', {}).get('Code') != 'CacheClusterNotFound':
+                raise
+        elif e.code != 'CacheClusterNotFound':
+            raise
+
+    return cache
 
 
 def manage(
@@ -138,26 +184,9 @@ def manage(
     http://boto.readthedocs.org/en/latest/ref/elasticache.html#boto.elasticache.layer1.ElastiCacheConnection.create_cache_cluster
 
     """
-    aws_key, aws_secret = _creds(aws_key, aws_secret)
+    ecconn = _ecconn(region, aws_key, aws_secret)
 
-    ecconn = boto.elasticache.connect_to_region(
-        region,
-        aws_access_key_id=aws_key,
-        aws_secret_access_key=aws_secret)
-
-    cache = None
-    try:
-        response = ecconn.describe_cache_clusters(name,
-                                                  show_cache_node_info=True)
-        cache = response['DescribeCacheClustersResponse']\
-            ['DescribeCacheClustersResult']['CacheClusters'][0]
-    except boto.exception.BotoServerError as e:
-        if e.code is None:
-            exc = json.loads(e.message)
-            if exc.get('Error', {}).get('Code') != 'CacheClusterNotFound':
-                raise
-        elif e.code != 'CacheClusterNotFound':
-            raise
+    cache = get_cache_cluster(name, region, aws_key, aws_secret, ecconn)
 
     if cache is None:
         # Create cache
@@ -231,24 +260,9 @@ def launch_replica(
         The EC2 Availability Zone in which the cluster will be created
 
     """
-    aws_key, aws_secret = _creds(aws_key, aws_secret)
+    ecconn = _ecconn(region, aws_key, aws_secret)
 
-    ecconn = boto.elasticache.connect_to_region(
-        region,
-        aws_access_key_id=aws_key,
-        aws_secret_access_key=aws_secret)
-
-    cache = None
-    try:
-        response = ecconn.describe_cache_clusters(name)
-        cache = response['DescribeCacheClustersResponse']\
-            ['DescribeCacheClustersResult']['CacheClusters'][0]
-    except boto.exception.BotoServerError as e:
-        if e.code is None:
-            exc = json.loads(e.message)
-            e.code = exc.get('Error', {}).get('Code')
-        if e.code != 'CacheClusterNotFound':
-            raise
+    cache = get_cache_cluster(name, region, aws_key, aws_secret, ecconn)
 
     if cache is None:
         if not test:
@@ -295,7 +309,8 @@ def launch(
     Most arguments are the same as :meth:`.manage`
 
     """
-    aws_key, aws_secret = _creds(aws_key, aws_secret)
+    if ecconn is None:
+        ecconn = _ecconn(region, aws_key, aws_secret)
 
     if snapshots is not None:
         if snapshot_optional:
@@ -327,12 +342,6 @@ def launch(
                 snapshots = None
         for i in range(len(snapshots)):
             snapshots[i] = 'arn:aws:s3:::' + snapshots[i]
-
-    if ecconn is None:
-        ecconn = boto.elasticache.connect_to_region(
-            region,
-            aws_access_key_id=aws_key,
-            aws_secret_access_key=aws_secret)
 
     ecconn.create_cache_cluster(
         name,
@@ -377,13 +386,8 @@ def modify(
     Most arguments are the same as :meth:`.manage`
 
     """
-    aws_key, aws_secret = _creds(aws_key, aws_secret)
-
     if ecconn is None:
-        ecconn = boto.elasticache.connect_to_region(
-            region,
-            aws_access_key_id=aws_key,
-            aws_secret_access_key=aws_secret)
+        ecconn = _ecconn(region, aws_key, aws_secret)
 
     changes = {}
 
@@ -471,26 +475,23 @@ def delete(
     Most arguments are the same as :meth:`.manage`
 
     """
-    aws_key, aws_secret = _creds(aws_key, aws_secret)
+    ecconn = _ecconn(region, aws_key, aws_secret)
 
-    ecconn = boto.elasticache.connect_to_region(
-        region,
-        aws_access_key_id=aws_key,
-        aws_secret_access_key=aws_secret)
 
-    try:
-        ecconn.describe_cache_clusters(name)
+    cache = get_cache_cluster(name, region, aws_key, aws_secret, ecconn)
+
+    if cache is not None:
         if not test:
-            # TODO: If this is the primary of a replication group, you need to
-            # delete that
+            # If this is the primary of a replication group, delete it instead
+            if cache.get('ReplicationGroupId'):
+                group = get_replication_group(cache['ReplicationGroupId'],
+                                              region, aws_key, aws_secret,
+                                              ecconn)
+                if len(group['MemberClusters']) == 1:
+                    ecconn.delete_replication_group(cache['ReplicationGroupId'])
+                    return True
             ecconn.delete_cache_cluster(name)
         return True
-    except boto.exception.BotoServerError as e:
-        if e.code is None:
-            exc = json.loads(e.message)
-            e.code = exc.get('Error', {}).get('Code')
-        if e.code != 'CacheClusterNotFound':
-            raise
 
 
 def manage_parameter_group(
@@ -545,12 +546,7 @@ def manage_parameter_group(
     http://docs.aws.amazon.com/AmazonElastiCache/latest/UserGuide/CacheParameterGroups.Redis.html
 
     """
-    aws_key, aws_secret = _creds(aws_key, aws_secret)
-
-    ecconn = boto.elasticache.connect_to_region(
-        region,
-        aws_access_key_id=aws_key,
-        aws_secret_access_key=aws_secret)
+    ecconn = _ecconn(region, aws_key, aws_secret)
 
     group = None
     try:
@@ -593,13 +589,8 @@ def create_parameter_group(
     Most arguments are the same as :meth:`.create_or_modify_parameter_group`
 
     """
-    aws_key, aws_secret = _creds(aws_key, aws_secret)
-
     if ecconn is None:
-        ecconn = boto.elasticache.connect_to_region(
-            region,
-            aws_access_key_id=aws_key,
-            aws_secret_access_key=aws_secret)
+        ecconn = _ecconn(region, aws_key, aws_secret)
 
     ecconn.create_cache_parameter_group(name, family, description)
 
@@ -622,16 +613,11 @@ def modify_parameter_group(
     Most arguments are the same as :meth:`.create_or_modify_parameter_group`
 
     """
-    aws_key, aws_secret = _creds(aws_key, aws_secret)
-
     if len(parameters) == 0:
         return
 
     if ecconn is None:
-        ecconn = boto.elasticache.connect_to_region(
-            region,
-            aws_access_key_id=aws_key,
-            aws_secret_access_key=aws_secret)
+        ecconn = _ecconn(region, aws_key, aws_secret)
 
     if group is None:
         response = ecconn.describe_cache_parameters(name)
@@ -677,12 +663,7 @@ def delete_parameter_group(
     Most arguments are the same as :meth:`.create_or_modify_parameter_group`
 
     """
-    aws_key, aws_secret = _creds(aws_key, aws_secret)
-
-    ecconn = boto.elasticache.connect_to_region(
-        region,
-        aws_access_key_id=aws_key,
-        aws_secret_access_key=aws_secret)
+    ecconn = _ecconn(region, aws_key, aws_secret)
 
     group = None
     try:
@@ -742,12 +723,7 @@ def manage_security_group(
 
     """
 
-    aws_key, aws_secret = _creds(aws_key, aws_secret)
-
-    ecconn = boto.elasticache.connect_to_region(
-        region,
-        aws_access_key_id=aws_key,
-        aws_secret_access_key=aws_secret)
+    ecconn = _ecconn(region, aws_key, aws_secret)
 
     group = None
     try:
@@ -788,13 +764,8 @@ def create_security_group(
     Most arguments are the same as :meth:`.manage_security_group`
 
     """
-    aws_key, aws_secret = _creds(aws_key, aws_secret)
-
     if ecconn is None:
-        ecconn = boto.elasticache.connect_to_region(
-            region,
-            aws_access_key_id=aws_key,
-            aws_secret_access_key=aws_secret)
+        ecconn = _ecconn(region, aws_key, aws_secret)
 
     ecconn.create_cache_security_group(name, description)
 
@@ -816,17 +787,10 @@ def modify_security_group(
     Most arguments are the same as :meth:`.manage_security_group`
 
     """
-    aws_key, aws_secret = _creds(aws_key, aws_secret)
-
     if ecconn is None:
-        ecconn = boto.elasticache.connect_to_region(
-            region,
-            aws_access_key_id=aws_key,
-            aws_secret_access_key=aws_secret)
-    ec2conn = boto.ec2.connect_to_region(
-        region,
-        aws_access_key_id=aws_key,
-        aws_secret_access_key=aws_secret)
+        ecconn = _ecconn(region, aws_key, aws_secret)
+
+    ec2conn = _ec2conn(region, aws_key, aws_secret)
 
     changes = {}
 
@@ -878,12 +842,7 @@ def delete_security_group(
     Most arguments are the same as :meth:`.manage_security_group`
 
     """
-    aws_key, aws_secret = _creds(aws_key, aws_secret)
-
-    ecconn = boto.elasticache.connect_to_region(
-        region,
-        aws_access_key_id=aws_key,
-        aws_secret_access_key=aws_secret)
+    ecconn = _ecconn(region, aws_key, aws_secret)
 
     try:
         response = ecconn.describe_cache_security_groups(name)
@@ -901,6 +860,34 @@ def delete_security_group(
         if not test:
             ecconn.delete_cache_security_group(name)
         return True
+
+
+def get_replication_group(
+    name,
+    region,
+    aws_key=None,
+    aws_secret=None,
+    ecconn=None):
+    """
+    Convenience method for retrieving a replication group
+
+    """
+    if ecconn is None:
+        ecconn = _ecconn(region, aws_key, aws_secret)
+
+    group = None
+    try:
+        response = ecconn.describe_replication_groups(name)
+        group = response['DescribeReplicationGroupsResponse']\
+                        ['DescribeReplicationGroupsResult']\
+                        ['ReplicationGroups'][0]
+    except boto.exception.BotoServerError as e:
+        if e.code is None:
+            exc = json.loads(e.message)
+        e.code = exc.get('Error', {}).get('Code')
+        if e.code != 'ReplicationGroupNotFoundFault':
+            raise
+    return group
 
 
 def create_replication_group(
@@ -934,25 +921,9 @@ def create_replication_group(
         a pillar.
 
     """
-    aws_key, aws_secret = _creds(aws_key, aws_secret)
+    ecconn = _ecconn(region, aws_key, aws_secret)
 
-    ecconn = boto.elasticache.connect_to_region(
-        region,
-        aws_access_key_id=aws_key,
-        aws_secret_access_key=aws_secret)
-
-    group = None
-    try:
-        response = ecconn.describe_replication_groups(name)
-        group = response['DescribeReplicationGroupsResponse']\
-                        ['DescribeReplicationGroupsResult']\
-                        ['ReplicationGroups'][0]
-    except boto.exception.BotoServerError as e:
-        if e.code is None:
-            exc = json.loads(e.message)
-        e.code = exc.get('Error', {}).get('Code')
-        if e.code != 'ReplicationGroupNotFoundFault':
-            raise
+    group = get_replication_group(name, region, aws_key, aws_secret, ecconn)
 
     if group is None:
         if not test:
