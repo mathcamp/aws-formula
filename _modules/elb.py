@@ -1,16 +1,94 @@
 """
+:maintainer:    Steven Arcangeli <steven@highlig.ht>
+:maturity:      new
+:depends:       boto
+:platform:      all
+
 Module for manipulating Amazon ELBs
 
 """
-import boto.ec2.elb
-import boto.exception
+try:
+    import boto.ec2.elb
+    import boto.exception
+    HAS_BOTO = True
+except ImportError:
+    HAS_BOTO = False
 
 
 # This prevents pylint from yelling at me
 __pillar__ = {}
 
+def _creds(aws_key=None, aws_secret=None):
+    """ Convenience method for retrieving AWS credentials """
+    if aws_key is None:
+        aws_key = __pillar__.get('aws', {}).get('key')
+    if aws_secret is None:
+        aws_secret = __pillar__.get('aws', {}).get('secret')
 
-def launch_or_modify(
+    if not aws_key or not aws_secret:
+        raise TypeError("No aws credentials found! You need to define the "
+                        "pillar values 'aws:key' and 'aws:secret'")
+    return aws_key, aws_secret
+
+
+def _elbconn(region, aws_key=None, aws_secret=None):
+    """ Convenience method for constructing an ELB connection """
+    aws_key, aws_secret = _creds(aws_key, aws_secret)
+    return boto.ec2.elb.connect_to_region(
+        region,
+        aws_access_key_id=aws_key,
+        aws_secret_access_key=aws_secret)
+
+
+def _ec2conn(region, aws_key=None, aws_secret=None):
+    """ Convenience method for constructing an ec2 connection """
+    aws_key, aws_secret = _creds(aws_key, aws_secret)
+    return boto.ec2.connect_to_region(
+        region,
+        aws_access_key_id=aws_key,
+        aws_secret_access_key=aws_secret)
+
+
+def _convert_server_names(names, region, aws_key=None, aws_secret=None):
+    """ Convert a list of server names/instance ids to just instance ids """
+    ec2conn = _ec2conn(region, aws_key, aws_secret)
+    tags = ec2conn.get_all_tags()
+    name_map = {tag.value: tag.res_id for tag in tags
+                if tag.name.lower() == 'name'}
+
+    for i in range(len(names)):
+        if not names[i].startswith('i-'):
+            names[i] = name_map[names[i]]
+
+
+def _get_elb(
+    name,
+    region,
+    aws_key=None,
+    aws_secret=None,
+    elbconn=None):
+    """
+    Convenience method for retrieving an ELB
+
+    """
+    if elbconn is None:
+        elbconn = _elbconn(region, aws_key, aws_secret)
+
+    try:
+        elbs = elbconn.get_all_load_balancers(load_balancer_names=[name])
+        return elbs[0]
+    except boto.exception.BotoServerError as e:
+        if e.code == 'LoadBalancerNotFound':
+            return None
+        else:
+            raise
+
+
+def __virtual__():
+    return 'elb' if HAS_BOTO else False
+
+
+def manage(
     name,
     region,
     zones,
@@ -85,7 +163,7 @@ def launch_or_modify(
     instances : list, optional
         List of instance ids that should be attached to the ELB. If this
         argument is None or unspecified, no instances will be added or removed.
-        TODO: allow server names here
+        You may also use server names instead of instance ids.
     test : bool, optional
         If true, don't actually perform any changes
     aws_key : str, optional
@@ -107,18 +185,7 @@ def launch_or_modify(
     http://boto.readthedocs.org/en/latest/ref/elb.html#boto.ec2.elb.ELBConnection.create_load_balancer
 
     """
-    if aws_key is None:
-        aws_key = __pillar__.get('aws', {}).get('key')
-    if aws_secret is None:
-        aws_secret = __pillar__.get('aws', {}).get('secret')
-
-    if not aws_key or not aws_secret:
-        raise TypeError("No aws credentials found! You need to define the "
-                        "pillar values 'aws:key' and 'aws:secret'")
-
-    elbconn = boto.ec2.elb.connect_to_region(region,
-                                             aws_access_key_id=aws_key,
-                                             aws_secret_access_key=aws_secret)
+    elbconn = _elbconn(region, aws_key, aws_secret)
 
     # Convert SSL certificate names into ARN
     iamconn = boto.connect_iam(aws_key, aws_secret)
@@ -134,21 +201,14 @@ def launch_or_modify(
             if len(listener) == 5 and not listener[4].startswith('arn:'):
                 listener[4] = find_cert(listener[4])
 
-    try:
-        elbs = elbconn.get_all_load_balancers(load_balancer_names=[name])
-    except boto.exception.BotoServerError as e:
-        if e.code == 'LoadBalancerNotFound':
-            elbs = []
-        else:
-            raise
-    if len(elbs) == 0:
+    elb = _get_elb(name, region, aws_key, aws_secret, elbconn)
+
+    if elb is None:
         launch(name, region, zones, listeners, subnets, security_groups,
                health_check, policies, instances, test, aws_key, aws_secret,
                elbconn)
         return {'action': 'launch'}
     else:
-        elb = elbs[0]
-
         # Scheme
         if scheme != elb.scheme:
             raise ValueError("Scheme '{0}' is not '{1}', but scheme cannot be "
@@ -185,21 +245,8 @@ def launch(
         If present this function will not open a new elb connection
 
     """
-
-    if aws_key is None:
-        aws_key = __pillar__.get('aws', {}).get('key')
-    if aws_secret is None:
-        aws_secret = __pillar__.get('aws', {}).get('secret')
-
-    if not aws_key or not aws_secret:
-        raise TypeError("No aws credentials found! You need to define the "
-                        "pillar values 'aws:key' and 'aws:secret'")
-
     if elbconn is None:
-        elbconn = boto.ec2.elb.connect_to_region(
-            region,
-            aws_access_key_id=aws_key,
-            aws_secret_access_key=aws_secret)
+        elbconn = _elbconn(region, aws_key, aws_secret)
 
     if not test:
         elb = elbconn.create_load_balancer(
@@ -247,21 +294,8 @@ def modify(
         balancer
 
     """
-
-    if aws_key is None:
-        aws_key = __pillar__.get('aws', {}).get('key')
-    if aws_secret is None:
-        aws_secret = __pillar__.get('aws', {}).get('secret')
-
-    if not aws_key or not aws_secret:
-        raise TypeError("No aws credentials found! You need to define the "
-                        "pillar values 'aws:key' and 'aws:secret'")
-
     if elbconn is None:
-        elbconn = boto.ec2.elb.connect_to_region(
-            region,
-            aws_access_key_id=aws_key,
-            aws_secret_access_key=aws_secret)
+        elbconn = _elbconn(region, aws_key, aws_secret)
 
     if elb is None:
         elbs = elbconn.get_all_load_balancers(load_balancer_names=[name])
@@ -377,6 +411,8 @@ def modify(
 
     # Instances
     if instances is not None:
+        _convert_server_names(instances, region, aws_key, aws_secret)
+
         elb_instances = [i.id for i in elb.instances]
         if instances != elb_instances:
             to_remove = set(elb_instances) - set(instances)
@@ -464,28 +500,86 @@ def delete(
         a pillar.
 
     """
+    elbconn = _elbconn(region, aws_key, aws_secret)
+    elb = _get_elb(name, region, aws_key, aws_secret, elbconn)
 
-    if aws_key is None:
-        aws_key = __pillar__.get('aws', {}).get('key')
-    if aws_secret is None:
-        aws_secret = __pillar__.get('aws', {}).get('secret')
-
-    if not aws_key or not aws_secret:
-        raise TypeError("No aws credentials found! You need to define the "
-                        "pillar values 'aws:key' and 'aws:secret'")
-
-    elbconn = boto.ec2.elb.connect_to_region(region,
-                                             aws_access_key_id=aws_key,
-                                             aws_secret_access_key=aws_secret)
-
-    try:
-        elbs = elbconn.get_all_load_balancers(load_balancer_names=[name])
-        elb = elbs[0]
+    if elb is not None:
         if not test:
             elb.delete()
         return True
-    except boto.exception.BotoServerError as e:
-        if e.code == 'LoadBalancerNotFound':
-            return False
-        else:
-            raise
+
+
+def add(
+    name,
+    region,
+    elb,
+    test=False,
+    aws_key=None,
+    aws_secret=None):
+    """
+    Idempotently add a server to an ELB
+
+    Parameters
+    ----------
+    name : str
+        Name or instance id of the server
+    region : str
+        The AWS region the server/ELB are in
+    elb : str
+        The name of the ELB
+
+    Returns
+    -------
+    modified : bool
+        True if a change was made
+
+    """
+
+    names = [name]
+    _convert_server_names(names, region, aws_key, aws_secret)
+    name = names[0]
+    elb_instance = _get_elb(elb, region, aws_key, aws_secret)
+
+    if name not in elb_instance.instances:
+        if not test:
+            elb_instance.register_instances(names)
+        return True
+    return False
+
+
+def remove(
+    name,
+    region,
+    elb,
+    test=False,
+    aws_key=None,
+    aws_secret=None):
+    """
+    Idempotently remove a server from an ELB
+
+    Parameters
+    ----------
+    name : str
+        Name or instance id of the server
+    region : str
+        The AWS region the server/ELB are in
+    elb : str
+        The name of the ELB
+
+    Returns
+    -------
+    modified : bool
+        True if a change was made
+
+    """
+
+    names = [name]
+    _convert_server_names(names, region, aws_key, aws_secret)
+    name = names[0]
+    elb_instance = _get_elb(elb, region, aws_key, aws_secret)
+
+    if name in elb_instance.instances:
+        if not test:
+            elb_instance.deregister_instances(names)
+        return True
+    return False

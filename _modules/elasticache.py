@@ -1,15 +1,29 @@
 """
+:maintainer:    Steven Arcangeli <steven@highlig.ht>
+:maturity:      new
+:depends:       boto
+:platform:      all
+
 Module for manipulating Amazon Elasticache clusters
 
 """
-import boto.elasticache
-import boto.exception
+try:
+    import boto.elasticache
+    import boto.exception
+    from boto.s3.key import Key
+    HAS_BOTO = True
+except ImportError:
+    HAS_BOTO = False
+
 import json
-from boto.s3.key import Key
 
 
 # This prevents pylint from yelling at me
 __pillar__ = {}
+
+def __virtual__():
+    return 'elasticache' if HAS_BOTO else False
+
 
 def _creds(aws_key=None, aws_secret=None):
     """ Convenience method for retrieving AWS credentials """

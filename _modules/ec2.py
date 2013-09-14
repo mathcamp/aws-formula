@@ -1,13 +1,25 @@
 """
+:maintainer:    Steven Arcangeli <steven@highlig.ht>
+:maturity:      new
+:depends:       boto
+:platform:      all
+
 Module for manipulating Amazon EC2 servers
 
 """
-import boto.ec2
-import boto.exception
+try:
+    import boto.ec2
+    import boto.exception
+    HAS_BOTO = True
+except ImportError:
+    HAS_BOTO = False
 
 
 # This prevents pylint from yelling at me
 __pillar__ = {}
+
+def __virtual__():
+    return 'ec2' if HAS_BOTO else False
 
 
 def manage(

@@ -45,7 +45,17 @@ Examples
         - name: bad-elb
         - region: us-west-1
 
-TODO: add simple state for adding/removing single server (for use with prereq)
+    .add-server:
+      elb.add:
+        - name: my-server
+        - region: us-west-1
+        - elb: webserver-elb
+
+    .rm-badserver:
+      elb.remove:
+        - name: badserver
+        - region: us-west-1
+        - elb: webserver-elb
 
 """
 import boto.ec2.elb
@@ -71,7 +81,7 @@ def managed(
     """
     Ensure an ELB exists
 
-    The arguments are the same as the ``elb.launch_or_modify`` module
+    The arguments are the same as the ``elb.manage`` module
 
     """
 
@@ -81,7 +91,7 @@ def managed(
            'changes': {},
            }
     try:
-        changes = __salt__['elb.launch_or_modify'](
+        changes = __salt__['elb.manage'](
             name, region, zones, listeners, subnets, security_groups, scheme,
             health_check, policies, instances, __opts__['test'])
         if changes.pop('action') == 'launch':
@@ -116,8 +126,10 @@ def absent(name, region):
 
     Parameters
     ----------
+    name : str
+        The name of the ELB
     region : str
-        The availability region the ELB is in
+        The AWS region the ELB is in
 
     """
     ret = {'name': name,
@@ -136,6 +148,89 @@ def absent(name, region):
             ret['comment'] = action + ' ' + msg
             ret['changes'][action] = msg
     except TypeError as e:
+        ret['result'] = False
+        ret['comment'] = e.message
+    except boto.exception.BotoServerError as e:
+        ret['result'] = False
+        ret['comment'] = "{0}: {1}".format(e.code, e.message),
+    return ret
+
+def add(
+    name,
+    region,
+    elb):
+    """
+    Add a server to an ELB
+
+    Parameters
+    ----------
+    name : str
+        The name or instance id of the server
+    region : str
+        The AWS region
+    elb : str
+        The name of the ELB to add the server to
+
+    """
+
+    ret = {'name': name,
+           'result': True,
+           'comment': 'No changes',
+           'changes': {},
+           }
+    try:
+        changed = __salt__['elb.add'](name, region, elb, test=__opts__['test'])
+        if __opts__['test']:
+            action = 'Will add'
+        else:
+            action = 'Added'
+        msg = "'{0}' to '{1}' in region '{2}'".format(name, elb, region)
+        if changed:
+            ret['comment'] = action + ' ' + msg
+            ret['changes'][action] = msg
+    except (TypeError, ValueError) as e:
+        ret['result'] = False
+        ret['comment'] = e.message
+    except boto.exception.BotoServerError as e:
+        ret['result'] = False
+        ret['comment'] = "{0}: {1}".format(e.code, e.message),
+    return ret
+
+def remove(
+    name,
+    region,
+    elb):
+    """
+    Remove a server from an ELB
+
+    Parameters
+    ----------
+    name : str
+        The name or instance id of the server
+    region : str
+        The AWS region
+    elb : str
+        The name of the ELB to remove the server from
+
+    """
+
+    ret = {'name': name,
+           'result': True,
+           'comment': 'No changes',
+           'changes': {},
+           }
+    try:
+        changed = __salt__['elb.remove'](name, region, elb,
+                                         test=__opts__['test'])
+        if __opts__['test']:
+            action = 'Will remove'
+        else:
+            action = 'Removed'
+        msg = "'{0}' from '{1}' in region '{2}'".format(name, elb, region)
+        if changed:
+            ret['comment'] = action + ' ' + msg
+            ret['changes'][action] = msg
+    except (TypeError, ValueError) as e:
         ret['result'] = False
         ret['comment'] = e.message
     except boto.exception.BotoServerError as e:
