@@ -51,12 +51,9 @@ Examples
       - region: us-west-1
 
 """
-import boto.ec2
-import boto.exception
 
 # This prevents pylint from yelling at me
 __opts__ = {}
-__pillar__ = {}
 __salt__ = {}
 
 
@@ -91,36 +88,15 @@ def present(
     Most parameters are described in ``ec2.manage`` module
 
     """
-
-    ret = {'name': name,
-           'result': True,
-           'comment': 'No changes',
-           'changes': {},
-           }
-    try:
-        changed = __salt__['ec2.manage'](
-            name, region, key_name, ami, security_groups, instance_type,
-            kernel, user_data, termination_protection, addressing_type,
-            placement, ramdisk_id, monitoring_enabled, subnet_id,
-            block_device_map, instance_initiated_shutdown_behavior,
-            private_ip_address, placement_group, additional_info,
-            instance_profile_name, instance_profile_arn, tenancy,
-            ebs_optimized, network_interfaces, __opts__['test'])
-        if changed:
-            if __opts__['test']:
-                action = 'Will create'
-            else:
-                action = 'Created'
-            msg = "Instance in region '{0}'".format(region)
-            ret['comment'] = action + ' ' + msg
-            ret['changes'][action] = msg
-    except TypeError as e:
-        ret['result'] = False
-        ret['comment'] = e.message
-    except boto.exception.BotoServerError as e:
-        ret['result'] = False
-        ret['comment'] = "{0}: {1}".format(e.code, e.message),
-    return ret
+    return __salt__['aws_util.run_aws_module'](
+        'ec2.manage', 'Server', name, region, name, region, key_name, ami,
+        security_groups, instance_type, kernel, user_data,
+        termination_protection, addressing_type, placement, ramdisk_id,
+        monitoring_enabled, subnet_id, block_device_map,
+        instance_initiated_shutdown_behavior, private_ip_address,
+        placement_group, additional_info, instance_profile_name,
+        instance_profile_arn, tenancy, ebs_optimized, network_interfaces,
+        __opts__['test'])
 
 
 def absent(
@@ -133,30 +109,9 @@ def absent(
     Most parameters are described in ``ec2.manage`` module
 
     """
-
-    ret = {'name': name,
-           'result': True,
-           'comment': 'No changes',
-           'changes': {},
-           }
-    try:
-        changed = __salt__['ec2.terminate'](
-            name, region, force_termination, __opts__['test'])
-        if changed:
-            if __opts__['test']:
-                action = 'Will terminate'
-            else:
-                action = 'Terminated'
-            msg = "Instance in region '{0}'".format(region)
-            ret['comment'] = action + ' ' + msg
-            ret['changes'][action] = msg
-    except TypeError as e:
-        ret['result'] = False
-        ret['comment'] = e.message
-    except boto.exception.BotoServerError as e:
-        ret['result'] = False
-        ret['comment'] = "{0}: {1}".format(e.code, e.message),
-    return ret
+    return __salt__['aws_util.run_aws_module'](
+        'ec2.terminate', 'Server', name, region, name, region,
+        force_termination, __opts__['test'])
 
 
 def security_group(
@@ -172,40 +127,9 @@ def security_group(
     Most parameters are described in ``ec2.manage_security_group`` module
 
     """
-    ret = {'name': name,
-           'result': True,
-           'comment': 'No changes',
-           'changes': {},
-           }
-    try:
-        changes = __salt__['ec2.manage_security_group'](
-            name, region, description, vpc_id, rules, rules_egress,
-            __opts__['test'])
-
-        if changes.pop('action') == 'create':
-            if __opts__['test']:
-                action = 'Will create'
-            else:
-                action = 'Created'
-            msg = "Security Group '{0}' in region '{1}'".format(name, region)
-            ret['comment'] = action + ' ' + msg
-            ret['changes'][action] = msg
-        elif changes:
-            if __opts__['test']:
-                action = 'Will modify'
-            else:
-                action = 'Modified'
-            ret['comment'] = ("{0} Security Group '{1}' in "
-                              "region '{2}'".format(action, name, region))
-            ret['changes'] = changes
-
-    except (TypeError, ValueError) as e:
-        ret['result'] = False
-        ret['comment'] = e.message
-    except boto.exception.BotoServerError as e:
-        ret['result'] = False
-        ret['comment'] = "{0}: {1}".format(e.code, e.message),
-    return ret
+    return __salt__['aws_util.run_aws_module'](
+        'ec2.manage_security_group', 'Security group', name, region, name,
+        region, description, vpc_id, rules, rules_egress, __opts__['test'])
 
 
 def security_group_absent(
@@ -218,34 +142,15 @@ def security_group_absent(
     Most parameters are described in ``ec2.manage_security_group`` module
 
     """
-    ret = {'name': name,
-           'result': True,
-           'comment': 'No changes',
-           'changes': {},
-           }
-    try:
-        changed = __salt__['ec2.delete_security_group'](name, region, group_id,
-                                                        __opts__['test'])
-        if changed:
-            if __opts__['test']:
-                action = 'Will delete'
-            else:
-                action = 'Deleted'
-            msg = "Security Group '{0}' in region '{1}'".format(name, region)
-            ret['comment'] = action + ' ' + msg
-            ret['changes'][action] = msg
-    except TypeError as e:
-        ret['result'] = False
-        ret['comment'] = e.message
-    except boto.exception.BotoServerError as e:
-        ret['result'] = False
-        ret['comment'] = "{0}: {1}".format(e.code, e.message),
-    return ret
+    return __salt__['aws_util.run_aws_module'](
+        'ec2.delete_security_group', 'Security group', name, region, name,
+        region, group_id, __opts__['test'])
+
 
 def keypair(
     name,
     region,
-    content):
+        content):
     """
     Ensure a keypair exists
 
@@ -254,9 +159,10 @@ def keypair(
         'ec2.create_keypair', 'Keypair', name, region, name, region, content,
         __opts__['test'])
 
+
 def keypair_absent(
     name,
-    region):
+        region):
     """
     Ensure a keypair does not exist
 

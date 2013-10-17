@@ -18,9 +18,12 @@ except ImportError:
 # This prevents pylint from yelling at me
 __salt__ = {}
 
+
 def __virtual__():
     return 'ec2' if HAS_BOTO else False
 
+
+# EC2 servers
 
 def manage(
     name,
@@ -170,74 +173,8 @@ def manage(
                    instance_profile_name, instance_profile_arn, tenancy,
                    ebs_optimized, network_interfaces, aws_key, aws_secret,
                    ec2conn)
-        return True
-
-    return False
-
-
-def terminate(name,
-              region,
-              force_termination=False,
-              test=False,
-              aws_key=None,
-              aws_secret=None):
-    """
-    Terminate an instance
-
-    Parameters are described in :meth:`.manage`
-
-    """
-    ec2conn = __salt__['aws_util.ec2conn'](region, aws_key, aws_secret)
-
-    tags = ec2conn.get_all_tags()
-    all_names = set([tag.value for tag in tags if tag.name.lower() == 'name'])
-    server_tag = None
-    for tag in tags:
-        if tag.name.lower() == 'name' and tag.value == name:
-            server_tag = tag
-            break
-
-    if server_tag is not None:
-        if not test:
-            instances = ec2conn.get_only_instances(
-                instance_ids=[server_tag.res_id])
-            server = instances[0]
-
-            if force_termination:
-                if server.get_attribute('disableApiTermination'):
-                    server.modify_attribute('disableApiTermination', False)
-
-            ec2conn.terminate_instances([server.id])
-            _rename_tag_deleted(ec2conn, server_tag, all_names)
-        return True
-
-    return False
-
-
-def _rename_tag_deleted(ec2conn, tag, all_names):
-    """
-    Rename a name tag on a server to mark it as deleted
-
-    This helps to avoid naming conflicts with servers that have been terminated
-    but are still visible.
-
-    """
-    attempts = 3
-    for i in range(attempts):
-        try:
-            ec2conn.delete_tags([tag.res_id], {'Name': tag.value})
-            break
-        except boto.exception.EC2ResponseError:
-            if i == attempts - 1:
-                raise
-    del_name = _find_free_name(all_names, 'deleted-' + tag.value)
-    for i in range(attempts):
-        try:
-            ec2conn.create_tags([tag.res_id], {'Name': del_name})
-            break
-        except boto.exception.EC2ResponseError:
-            if i == attempts - 1:
-                raise
+        return {'action': 'create'}
+    return {'action': 'noop'}
 
 
 def launch(
@@ -328,6 +265,95 @@ def launch(
 
     for name, instance in zip(hostnames, reservation.instances):
         ec2conn.create_tags([instance.id], {"Name": name})
+
+
+def terminate(name,
+              region,
+              force_termination=False,
+              test=False,
+              aws_key=None,
+              aws_secret=None):
+    """
+    Terminate an instance
+
+    Parameters are described in :meth:`.manage`
+
+    """
+    ec2conn = __salt__['aws_util.ec2conn'](region, aws_key, aws_secret)
+
+    tags = ec2conn.get_all_tags()
+    all_names = set([tag.value for tag in tags if tag.name.lower() == 'name'])
+    server_tag = None
+    for tag in tags:
+        if tag.name.lower() == 'name' and tag.value == name:
+            server_tag = tag
+            break
+
+    if server_tag is not None:
+        if not test:
+            instances = ec2conn.get_only_instances(
+                instance_ids=[server_tag.res_id])
+            server = instances[0]
+
+            if force_termination:
+                if server.get_attribute('disableApiTermination'):
+                    server.modify_attribute('disableApiTermination', False)
+
+            ec2conn.terminate_instances([server.id])
+            _rename_tag_deleted(ec2conn, server_tag, all_names)
+        return True
+
+    return False
+
+
+def _rename_tag_deleted(ec2conn, tag, all_names):
+    """
+    Rename a name tag on a server to mark it as deleted
+
+    This helps to avoid naming conflicts with servers that have been terminated
+    but are still visible.
+
+    """
+    attempts = 3
+    for i in range(attempts):
+        try:
+            ec2conn.delete_tags([tag.res_id], {'Name': tag.value})
+            break
+        except boto.exception.EC2ResponseError:
+            if i == attempts - 1:
+                raise
+    del_name = _find_free_name(all_names, 'deleted-' + tag.value)
+    for i in range(attempts):
+        try:
+            ec2conn.create_tags([tag.res_id], {'Name': del_name})
+            break
+        except boto.exception.EC2ResponseError:
+            if i == attempts - 1:
+                raise
+
+
+def _find_free_name(all_names, name):
+    """
+    Find server names that are available
+
+    Parameters
+    ----------
+    all_names : list or set
+        All names for all servers in the region
+    name : str
+        The base name to look for
+
+    Returns
+    -------
+    name : str
+
+    """
+    i = 1
+    search_name = name + str(i)
+    while name in all_names:
+        i += 1
+        search_name = name + str(i)
+    return search_name
 
 
 # Security groups
@@ -534,28 +560,7 @@ def delete_security_group(
         return False
 
 
-def _find_free_name(all_names, name):
-    """
-    Find server names that are available
-
-    Parameters
-    ----------
-    all_names : list or set
-        All names for all servers in the region
-    name : str
-        The base name to look for
-
-    Returns
-    -------
-    name : str
-
-    """
-    i = 1
-    search_name = name + str(i)
-    while name in all_names:
-        i += 1
-        search_name = name + str(i)
-    return search_name
+# Key pairs
 
 def create_keypair(
     name,
@@ -563,7 +568,7 @@ def create_keypair(
     content,
     test=False,
     aws_key=None,
-    aws_secret=None):
+        aws_secret=None):
     """
     Create an EC2 Keypair
 
@@ -596,12 +601,13 @@ def create_keypair(
     else:
         return {'action': 'noop'}
 
+
 def delete_keypair(
     name,
     region,
     test=False,
     aws_key=None,
-    aws_secret=None):
+        aws_secret=None):
     """
     Delete an EC2 Keypair
 
