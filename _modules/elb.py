@@ -14,44 +14,12 @@ try:
 except ImportError:
     HAS_BOTO = False
 
-
 # This prevents pylint from yelling at me
-__pillar__ = {}
-
-def _creds(aws_key=None, aws_secret=None):
-    """ Convenience method for retrieving AWS credentials """
-    if aws_key is None:
-        aws_key = __pillar__.get('aws', {}).get('key')
-    if aws_secret is None:
-        aws_secret = __pillar__.get('aws', {}).get('secret')
-
-    if not aws_key or not aws_secret:
-        raise TypeError("No aws credentials found! You need to define the "
-                        "pillar values 'aws:key' and 'aws:secret'")
-    return aws_key, aws_secret
-
-
-def _elbconn(region, aws_key=None, aws_secret=None):
-    """ Convenience method for constructing an ELB connection """
-    aws_key, aws_secret = _creds(aws_key, aws_secret)
-    return boto.ec2.elb.connect_to_region(
-        region,
-        aws_access_key_id=aws_key,
-        aws_secret_access_key=aws_secret)
-
-
-def _ec2conn(region, aws_key=None, aws_secret=None):
-    """ Convenience method for constructing an ec2 connection """
-    aws_key, aws_secret = _creds(aws_key, aws_secret)
-    return boto.ec2.connect_to_region(
-        region,
-        aws_access_key_id=aws_key,
-        aws_secret_access_key=aws_secret)
-
+__salt__ = {}
 
 def _convert_server_names(names, region, aws_key=None, aws_secret=None):
     """ Convert a list of server names/instance ids to just instance ids """
-    ec2conn = _ec2conn(region, aws_key, aws_secret)
+    ec2conn = __salt__['aws_util.ec2conn'](region, aws_key, aws_secret)
     tags = ec2conn.get_all_tags()
     name_map = {tag.value: tag.res_id for tag in tags
                 if tag.name.lower() == 'name'}
@@ -72,7 +40,7 @@ def _get_elb(
 
     """
     if elbconn is None:
-        elbconn = _elbconn(region, aws_key, aws_secret)
+        elbconn = __salt__['aws_util.elbconn'](region, aws_key, aws_secret)
 
     try:
         elbs = elbconn.get_all_load_balancers(load_balancer_names=[name])
@@ -177,7 +145,7 @@ def manage(
     -------
     changes : dict
         The changes dict plus an additional key named 'action'. The 'action'
-        will either be 'launch' or 'modify'.
+        will either be 'create' or 'modify'.
 
     Notes
     -----
@@ -185,10 +153,10 @@ def manage(
     http://boto.readthedocs.org/en/latest/ref/elb.html#boto.ec2.elb.ELBConnection.create_load_balancer
 
     """
-    elbconn = _elbconn(region, aws_key, aws_secret)
+    elbconn = __salt__['aws_util.elbconn'](region, aws_key, aws_secret)
 
     # Convert SSL certificate names into ARN
-    iamconn = boto.connect_iam(aws_key, aws_secret)
+    iamconn = __salt__['aws_util.iamconn'](aws_key, aws_secret)
     certs = iamconn.get_all_server_certs()\
         ['list_server_certificates_response']\
         ['list_server_certificates_result']\
@@ -204,19 +172,22 @@ def manage(
     elb = _get_elb(name, region, aws_key, aws_secret, elbconn)
 
     if elb is None:
-        launch(name, region, zones, listeners, subnets, security_groups,
-               health_check, policies, instances, test, aws_key, aws_secret,
-               elbconn)
-        return {'action': 'launch'}
+        if not test:
+            launch(name, region, zones, listeners, subnets, security_groups,
+                scheme, health_check, policies, instances, aws_key, aws_secret,
+                elbconn)
+        return {'action': 'create'}
     else:
         # Scheme
         if scheme != elb.scheme:
             raise ValueError("Scheme '{0}' is not '{1}', but scheme cannot be "
                              "changed!".format(elb.scheme, scheme))
 
-        modify(name, region, zones, listeners, subnets, security_groups,
-               health_check, policies, instances, test, aws_key, aws_secret,
-               elbconn, elb)
+        changes = modify(name, region, zones, listeners, subnets,
+                         security_groups, health_check, policies, instances,
+                         test, aws_key, aws_secret, elbconn, elb)
+        changes['action'] = 'modify'
+        return changes
 
 
 def launch(
@@ -230,7 +201,6 @@ def launch(
     health_check=None,
     policies=None,
     instances=None,
-    test=False,
     aws_key=None,
     aws_secret=None,
         elbconn=None):
@@ -246,23 +216,22 @@ def launch(
 
     """
     if elbconn is None:
-        elbconn = _elbconn(region, aws_key, aws_secret)
+        elbconn = __salt__['aws_util.elbconn'](region, aws_key, aws_secret)
 
-    if not test:
-        elb = elbconn.create_load_balancer(
-            name,
-            zones,
-            subnets=subnets,
-            security_groups=security_groups,
-            scheme=scheme,
-            complex_listeners=listeners,
-        )
+    elb = elbconn.create_load_balancer(
+        name,
+        zones,
+        subnets=subnets,
+        security_groups=security_groups,
+        scheme=scheme,
+        complex_listeners=listeners,
+    )
 
-        # Some properties, like policies and instances, can only be set after
-        # the elb launches
-        modify(name, region, zones, listeners, subnets, security_groups,
-               health_check, policies, instances, test, aws_key, aws_secret,
-               elbconn, elb)
+    # Some properties, like policies and instances, can only be set after
+    # the elb launches
+    modify(name, region, zones, listeners, subnets, security_groups,
+            health_check, policies, instances, False, aws_key, aws_secret,
+            elbconn, elb)
 
 
 def modify(
@@ -295,7 +264,7 @@ def modify(
 
     """
     if elbconn is None:
-        elbconn = _elbconn(region, aws_key, aws_secret)
+        elbconn = __salt__['aws_util.elbconn'](region, aws_key, aws_secret)
 
     if elb is None:
         elbs = elbconn.get_all_load_balancers(load_balancer_names=[name])
@@ -500,7 +469,7 @@ def delete(
         a pillar.
 
     """
-    elbconn = _elbconn(region, aws_key, aws_secret)
+    elbconn = __salt__['aws_util.elbconn'](region, aws_key, aws_secret)
     elb = _get_elb(name, region, aws_key, aws_secret, elbconn)
 
     if elb is not None:
@@ -528,11 +497,6 @@ def add(
     elb : str
         The name of the ELB
 
-    Returns
-    -------
-    modified : bool
-        True if a change was made
-
     """
 
     names = [name]
@@ -543,8 +507,10 @@ def add(
     if name not in elb_instance.instances:
         if not test:
             elb_instance.register_instances(names)
-        return True
-    return False
+        return {'action': 'modify',
+                'Added': "Server '{0}' to ELB '{1}'".format(name, elb),
+                }
+    return {'action': 'noop'}
 
 
 def remove(
@@ -566,11 +532,6 @@ def remove(
     elb : str
         The name of the ELB
 
-    Returns
-    -------
-    modified : bool
-        True if a change was made
-
     """
 
     names = [name]
@@ -581,5 +542,7 @@ def remove(
     if name in elb_instance.instances:
         if not test:
             elb_instance.deregister_instances(names)
-        return True
-    return False
+        return {'action': 'modify',
+                'Removed': "Server '{0}' to ELB '{1}'".format(name, elb),
+                }
+    return {'action': 'noop'}

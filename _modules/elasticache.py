@@ -19,48 +19,10 @@ import json
 
 
 # This prevents pylint from yelling at me
-__pillar__ = {}
+__salt__ = {}
 
 def __virtual__():
     return 'elasticache' if HAS_BOTO else False
-
-
-def _creds(aws_key=None, aws_secret=None):
-    """ Convenience method for retrieving AWS credentials """
-    if aws_key is None:
-        aws_key = __pillar__.get('aws', {}).get('key')
-    if aws_secret is None:
-        aws_secret = __pillar__.get('aws', {}).get('secret')
-
-    if not aws_key or not aws_secret:
-        raise TypeError("No aws credentials found! You need to define the "
-                        "pillar values 'aws:key' and 'aws:secret'")
-    return aws_key, aws_secret
-
-
-def _ecconn(region, aws_key=None, aws_secret=None):
-    """ Convenience method for constructing an elasticache connection """
-    aws_key, aws_secret = _creds(aws_key, aws_secret)
-    return boto.elasticache.connect_to_region(
-        region,
-        aws_access_key_id=aws_key,
-        aws_secret_access_key=aws_secret)
-
-
-def _ec2conn(region, aws_key=None, aws_secret=None):
-    """ Convenience method for constructing an ec2 connection """
-    aws_key, aws_secret = _creds(aws_key, aws_secret)
-    return boto.ec2.connect_to_region(
-        region,
-        aws_access_key_id=aws_key,
-        aws_secret_access_key=aws_secret)
-
-
-def _s3conn( aws_key=None, aws_secret=None):
-    """ Convenience method for constructing an s3 connection """
-    aws_key, aws_secret = _creds(aws_key, aws_secret)
-    return boto.connect_s3(aws_access_key_id=aws_key,
-                           aws_secret_access_key=aws_secret)
 
 
 def get_cache_cluster(
@@ -74,7 +36,7 @@ def get_cache_cluster(
 
     """
     if ecconn is None:
-        ecconn = _ecconn(region, aws_key, aws_secret)
+        ecconn = __salt__['aws_util.ecconn'](region, aws_key, aws_secret)
 
     cache = None
     try:
@@ -206,7 +168,7 @@ def manage(
     http://boto.readthedocs.org/en/latest/ref/elasticache.html#boto.elasticache.layer1.ElastiCacheConnection.create_cache_cluster
 
     """
-    ecconn = _ecconn(region, aws_key, aws_secret)
+    ecconn = __salt__['aws_util.ecconn'](region, aws_key, aws_secret)
 
     cache = get_cache_cluster(name, region, aws_key, aws_secret, ecconn)
 
@@ -282,7 +244,7 @@ def launch_replica(
         The EC2 Availability Zone in which the cluster will be created
 
     """
-    ecconn = _ecconn(region, aws_key, aws_secret)
+    ecconn = __salt__['aws_util.ecconn'](region, aws_key, aws_secret)
 
     cache = get_cache_cluster(name, region, aws_key, aws_secret, ecconn)
 
@@ -332,11 +294,11 @@ def launch(
 
     """
     if ecconn is None:
-        ecconn = _ecconn(region, aws_key, aws_secret)
+        ecconn = __salt__['aws_util.ecconn'](region, aws_key, aws_secret)
 
     if snapshots is not None:
         if snapshot_optional:
-            s3conn = _s3conn(aws_key, aws_secret)
+            s3conn = __salt__['aws_util.s3conn'](aws_key, aws_secret)
             # If the snapshot doesn't exist, ignore it
             i = 0
             while i < len(snapshots):
@@ -408,7 +370,7 @@ def modify(
 
     """
     if ecconn is None:
-        ecconn = _ecconn(region, aws_key, aws_secret)
+        ecconn = __salt__['aws_util.ecconn'](region, aws_key, aws_secret)
 
     changes = {}
 
@@ -496,7 +458,7 @@ def delete(
     Most arguments are the same as :meth:`.manage`
 
     """
-    ecconn = _ecconn(region, aws_key, aws_secret)
+    ecconn = __salt__['aws_util.ecconn'](region, aws_key, aws_secret)
 
 
     cache = get_cache_cluster(name, region, aws_key, aws_secret, ecconn)
@@ -567,7 +529,7 @@ def manage_parameter_group(
     http://docs.aws.amazon.com/AmazonElastiCache/latest/UserGuide/CacheParameterGroups.Redis.html
 
     """
-    ecconn = _ecconn(region, aws_key, aws_secret)
+    ecconn = __salt__['aws_util.ecconn'](region, aws_key, aws_secret)
 
     group = None
     try:
@@ -611,7 +573,7 @@ def create_parameter_group(
 
     """
     if ecconn is None:
-        ecconn = _ecconn(region, aws_key, aws_secret)
+        ecconn = __salt__['aws_util.ecconn'](region, aws_key, aws_secret)
 
     ecconn.create_cache_parameter_group(name, family, description)
 
@@ -638,7 +600,7 @@ def modify_parameter_group(
         return
 
     if ecconn is None:
-        ecconn = _ecconn(region, aws_key, aws_secret)
+        ecconn = __salt__['aws_util.ecconn'](region, aws_key, aws_secret)
 
     if group is None:
         response = ecconn.describe_cache_parameters(name)
@@ -684,7 +646,7 @@ def delete_parameter_group(
     Most arguments are the same as :meth:`.create_or_modify_parameter_group`
 
     """
-    ecconn = _ecconn(region, aws_key, aws_secret)
+    ecconn = __salt__['aws_util.ecconn'](region, aws_key, aws_secret)
 
     group = None
     try:
@@ -744,7 +706,7 @@ def manage_security_group(
 
     """
 
-    ecconn = _ecconn(region, aws_key, aws_secret)
+    ecconn = __salt__['aws_util.ecconn'](region, aws_key, aws_secret)
 
     group = None
     try:
@@ -786,7 +748,7 @@ def create_security_group(
 
     """
     if ecconn is None:
-        ecconn = _ecconn(region, aws_key, aws_secret)
+        ecconn = __salt__['aws_util.ecconn'](region, aws_key, aws_secret)
 
     ecconn.create_cache_security_group(name, description)
 
@@ -809,9 +771,9 @@ def modify_security_group(
 
     """
     if ecconn is None:
-        ecconn = _ecconn(region, aws_key, aws_secret)
+        ecconn = __salt__['aws_util.ecconn'](region, aws_key, aws_secret)
 
-    ec2conn = _ec2conn(region, aws_key, aws_secret)
+    ec2conn = __salt__['aws_util.ec2conn'](aws_key, aws_secret)
 
     changes = {}
 
@@ -863,7 +825,7 @@ def delete_security_group(
     Most arguments are the same as :meth:`.manage_security_group`
 
     """
-    ecconn = _ecconn(region, aws_key, aws_secret)
+    ecconn = __salt__['aws_util.ecconn'](region, aws_key, aws_secret)
 
     try:
         response = ecconn.describe_cache_security_groups(name)
@@ -894,7 +856,7 @@ def get_replication_group(
 
     """
     if ecconn is None:
-        ecconn = _ecconn(region, aws_key, aws_secret)
+        ecconn = __salt__['aws_util.ecconn'](region, aws_key, aws_secret)
 
     group = None
     try:
@@ -942,7 +904,7 @@ def create_replication_group(
         a pillar.
 
     """
-    ecconn = _ecconn(region, aws_key, aws_secret)
+    ecconn = __salt__['aws_util.ecconn'](region, aws_key, aws_secret)
 
     group = get_replication_group(name, region, aws_key, aws_secret, ecconn)
 

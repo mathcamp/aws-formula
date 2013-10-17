@@ -58,12 +58,9 @@ Examples
         - elb: webserver-elb
 
 """
-import boto.ec2.elb
-import boto.exception
 
 # This prevents pylint from yelling at me
 __opts__ = {}
-__pillar__ = {}
 __salt__ = {}
 
 
@@ -85,39 +82,10 @@ def managed(
 
     """
 
-    ret = {'name': name,
-           'result': True,
-           'comment': 'No changes',
-           'changes': {},
-           }
-    try:
-        changes = __salt__['elb.manage'](
-            name, region, zones, listeners, subnets, security_groups, scheme,
-            health_check, policies, instances, __opts__['test'])
-        if changes.pop('action') == 'launch':
-            if __opts__['test']:
-                action = 'Will launch'
-            else:
-                action = 'Launched'
-            msg = "ELB '{0}' in region '{1}'".format(name, region)
-            ret['comment'] = action + ' ' + msg
-            ret['changes'][action] = msg
-        elif changes:
-            if __opts__['test']:
-                action = 'Will modify'
-            else:
-                action = 'Modified'
-            msg = "ELB '{0}' in region '{1}'".format(name, region)
-            ret['comment'] = action + ' ' + msg
-            ret['changes'] = changes
-
-    except (TypeError, ValueError) as e:
-        ret['result'] = False
-        ret['comment'] = e.message
-    except boto.exception.BotoServerError as e:
-        ret['result'] = False
-        ret['comment'] = "{0}: {1}".format(e.code, e.message),
-    return ret
+    return __salt__['aws_util.run_aws_module'](
+        'elb.manage', 'ELB', name, region, name, region, zones, listeners,
+        subnets, security_groups, scheme, health_check, policies, instances,
+        __opts__['test'])
 
 
 def absent(name, region):
@@ -132,28 +100,8 @@ def absent(name, region):
         The AWS region the ELB is in
 
     """
-    ret = {'name': name,
-           'result': True,
-           'comment': 'No changes',
-           'changes': {},
-           }
-    try:
-        changed = __salt__['elb.delete'](name, region, test=__opts__['test'])
-        if changed:
-            if __opts__['test']:
-                action = 'Will delete'
-            else:
-                action = 'Deleted'
-            msg = "ELB '{0}' in region '{1}'".format(name, region)
-            ret['comment'] = action + ' ' + msg
-            ret['changes'][action] = msg
-    except TypeError as e:
-        ret['result'] = False
-        ret['comment'] = e.message
-    except boto.exception.BotoServerError as e:
-        ret['result'] = False
-        ret['comment'] = "{0}: {1}".format(e.code, e.message),
-    return ret
+    return __salt__['aws_util.run_aws_module'](
+        'elb.delete', 'ELB', name, region, name, region, test=__opts__['test'])
 
 def add(
     name,
@@ -172,29 +120,9 @@ def add(
         The name of the ELB to add the server to
 
     """
-
-    ret = {'name': name,
-           'result': True,
-           'comment': 'No changes',
-           'changes': {},
-           }
-    try:
-        changed = __salt__['elb.add'](name, region, elb, test=__opts__['test'])
-        if __opts__['test']:
-            action = 'Will add'
-        else:
-            action = 'Added'
-        msg = "'{0}' to '{1}' in region '{2}'".format(name, elb, region)
-        if changed:
-            ret['comment'] = action + ' ' + msg
-            ret['changes'][action] = msg
-    except (TypeError, ValueError) as e:
-        ret['result'] = False
-        ret['comment'] = e.message
-    except boto.exception.BotoServerError as e:
-        ret['result'] = False
-        ret['comment'] = "{0}: {1}".format(e.code, e.message),
-    return ret
+    return __salt__['aws_util.run_aws_module'](
+        'elb.add', "ELB", elb, region, name, region,
+        elb, test=__opts__['test'])
 
 def remove(
     name,
@@ -213,27 +141,6 @@ def remove(
         The name of the ELB to remove the server from
 
     """
-
-    ret = {'name': name,
-           'result': True,
-           'comment': 'No changes',
-           'changes': {},
-           }
-    try:
-        changed = __salt__['elb.remove'](name, region, elb,
-                                         test=__opts__['test'])
-        if __opts__['test']:
-            action = 'Will remove'
-        else:
-            action = 'Removed'
-        msg = "'{0}' from '{1}' in region '{2}'".format(name, elb, region)
-        if changed:
-            ret['comment'] = action + ' ' + msg
-            ret['changes'][action] = msg
-    except (TypeError, ValueError) as e:
-        ret['result'] = False
-        ret['comment'] = e.message
-    except boto.exception.BotoServerError as e:
-        ret['result'] = False
-        ret['comment'] = "{0}: {1}".format(e.code, e.message),
-    return ret
+    return __salt__['aws_util.run_aws_module'](
+        'elb.remove', "ELB", elb, region, name, region,
+        elb, test=__opts__['test'])

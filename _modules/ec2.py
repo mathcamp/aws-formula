@@ -16,7 +16,7 @@ except ImportError:
 
 
 # This prevents pylint from yelling at me
-__pillar__ = {}
+__salt__ = {}
 
 def __virtual__():
     return 'ec2' if HAS_BOTO else False
@@ -150,18 +150,7 @@ def manage(
     TODO: This does not modify attributes on existing instances.
 
     """
-    if aws_key is None:
-        aws_key = __pillar__.get('aws', {}).get('key')
-    if aws_secret is None:
-        aws_secret = __pillar__.get('aws', {}).get('secret')
-
-    if not aws_key or not aws_secret:
-        raise TypeError("No aws credentials found! You need to define the "
-                        "pillar values 'aws:key' and 'aws:secret'")
-
-    ec2conn = boto.ec2.connect_to_region(region,
-                                         aws_access_key_id=aws_key,
-                                         aws_secret_access_key=aws_secret)
+    ec2conn = __salt__['aws_util.ec2conn'](region, aws_key, aws_secret)
 
     tags = ec2conn.get_all_tags()
     present = False
@@ -198,18 +187,7 @@ def terminate(name,
     Parameters are described in :meth:`.manage`
 
     """
-    if aws_key is None:
-        aws_key = __pillar__.get('aws', {}).get('key')
-    if aws_secret is None:
-        aws_secret = __pillar__.get('aws', {}).get('secret')
-
-    if not aws_key or not aws_secret:
-        raise TypeError("No aws credentials found! You need to define the "
-                        "pillar values 'aws:key' and 'aws:secret'")
-
-    ec2conn = boto.ec2.connect_to_region(region,
-                                         aws_access_key_id=aws_key,
-                                         aws_secret_access_key=aws_secret)
+    ec2conn = __salt__['aws_util.ec2conn'](region, aws_key, aws_secret)
 
     tags = ec2conn.get_all_tags()
     all_names = set([tag.value for tag in tags if tag.name.lower() == 'name'])
@@ -307,20 +285,8 @@ def launch(
 
     """
 
-    if aws_key is None:
-        aws_key = __pillar__.get('aws', {}).get('key')
-    if aws_secret is None:
-        aws_secret = __pillar__.get('aws', {}).get('secret')
-
-    if not aws_key or not aws_secret:
-        raise TypeError("No aws credentials found! You need to define the "
-                        "pillar values 'aws:key' and 'aws:secret'")
-
     if ec2conn is None:
-        ec2conn = boto.ec2.connect_to_region(
-            region,
-            aws_access_key_id=aws_key,
-            aws_secret_access_key=aws_secret)
+        ec2conn = __salt__['aws_util.ec2conn'](region, aws_key, aws_secret)
 
     if network_interfaces is not None:
         network_interfaces = [boto.ec2.networkinterface.NetworkInterfaceSpecification(
@@ -406,19 +372,7 @@ def manage_security_group(
         a pillar.
 
     """
-
-    if aws_key is None:
-        aws_key = __pillar__.get('aws', {}).get('key')
-    if aws_secret is None:
-        aws_secret = __pillar__.get('aws', {}).get('secret')
-
-    if not aws_key or not aws_secret:
-        raise TypeError("No aws credentials found! You need to define the "
-                        "pillar values 'aws:key' and 'aws:secret'")
-
-    ec2conn = boto.ec2.connect_to_region(region,
-                                         aws_access_key_id=aws_key,
-                                         aws_secret_access_key=aws_secret)
+    ec2conn = __salt__['aws_util.ec2conn'](region, aws_key, aws_secret)
 
     groups = ec2conn.get_all_security_groups()
     group = None
@@ -455,20 +409,8 @@ def create_security_group(
     Most parameters are described in :meth:`.manage_security_group`
 
     """
-    if aws_key is None:
-        aws_key = __pillar__.get('aws', {}).get('key')
-    if aws_secret is None:
-        aws_secret = __pillar__.get('aws', {}).get('secret')
-
-    if not aws_key or not aws_secret:
-        raise TypeError("No aws credentials found! You need to define the "
-                        "pillar values 'aws:key' and 'aws:secret'")
-
     if ec2conn is None:
-        ec2conn = boto.ec2.connect_to_region(
-            region,
-            aws_access_key_id=aws_key,
-            aws_secret_access_key=aws_secret)
+        ec2conn = __salt__['aws_util.ec2conn'](region, aws_key, aws_secret)
 
     group = ec2conn.create_security_group(name, description, vpc_id)
 
@@ -495,20 +437,9 @@ def modify_security_group(
     """
     rules = rules or []
     rules_egress = rules_egress or []
-    if aws_key is None:
-        aws_key = __pillar__.get('aws', {}).get('key')
-    if aws_secret is None:
-        aws_secret = __pillar__.get('aws', {}).get('secret')
-
-    if not aws_key or not aws_secret:
-        raise TypeError("No aws credentials found! You need to define the "
-                        "pillar values 'aws:key' and 'aws:secret'")
 
     if ec2conn is None:
-        ec2conn = boto.ec2.connect_to_region(
-            region,
-            aws_access_key_id=aws_key,
-            aws_secret_access_key=aws_secret)
+        ec2conn = __salt__['aws_util.ec2conn'](region, aws_key, aws_secret)
 
     groups = ec2conn.get_all_security_groups()
     if group is None:
@@ -586,18 +517,7 @@ def delete_security_group(
 
     """
 
-    if aws_key is None:
-        aws_key = __pillar__.get('aws', {}).get('key')
-    if aws_secret is None:
-        aws_secret = __pillar__.get('aws', {}).get('secret')
-
-    if not aws_key or not aws_secret:
-        raise TypeError("No aws credentials found! You need to define the "
-                        "pillar values 'aws:key' and 'aws:secret'")
-
-    ec2conn = boto.ec2.connect_to_region(region,
-                                         aws_access_key_id=aws_key,
-                                         aws_secret_access_key=aws_secret)
+    ec2conn = __salt__['aws_util.ec2conn'](region, aws_key, aws_secret)
 
     if group_id is not None:
         groups = ec2conn.get_all_security_groups(group_ids=[group_id])

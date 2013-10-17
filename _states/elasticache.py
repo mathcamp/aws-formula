@@ -70,66 +70,10 @@ Examples
 
 
 """
-import boto.exception
-import json
-
 
 # This prevents pylint from yelling at me
 __opts__ = {}
 __salt__ = {}
-
-
-def _run_module(module, obj_name, name, region, *args, **kwargs):
-    """ Wraps the running of a create/delete module method """
-    ret = {'name': name,
-           'result': True,
-           'comment': 'No changes',
-           'changes': {},
-           }
-    try:
-        changes = __salt__[module](*args, **kwargs)
-        if isinstance(changes, dict):
-            if changes.pop('action') == 'create':
-                if __opts__['test']:
-                    action = 'Will create'
-                else:
-                    action = 'Created'
-                msg = "{0} '{1}' in region '{2}'".format(
-                    obj_name, name, region)
-                ret['comment'] = action + ' ' + msg
-                ret['changes'][action] = msg
-            elif changes:
-                if __opts__['test']:
-                    action = 'Will modify'
-                else:
-                    action = 'Modified'
-                msg = "{0} '{1}' in region '{2}'".format(
-                    obj_name, name, region)
-                ret['comment'] = action + ' ' + msg
-                ret['changes'] = changes
-        else:
-            if changes:
-                if __opts__['test']:
-                    action = 'Will delete'
-                else:
-                    action = 'Deleted'
-                msg = "{0} '{1}' in region '{2}'".format(obj_name, name,
-                                                         region)
-                ret['changes'][action] = msg
-                ret['comment'] = action + ' ' + msg
-
-    except (TypeError, ValueError) as e:
-        ret['result'] = False
-        ret['comment'] = e.message
-    except boto.exception.BotoServerError as e:
-        ret['result'] = False
-        if e.code is None:
-            exc = json.loads(e.message)
-            ret['comment'] = "{0}: {1}".format(exc['Error']['Code'],
-                                               exc['Error']['Message'])
-        else:
-            ret['comment'] = "{0}: {1}".format(e.code, e.message),
-    return ret
 
 
 def managed(
@@ -160,16 +104,14 @@ def managed(
     The arguments are the same as the ``elasticache.manage`` module
 
     """
-    return _run_module('elasticache.manage',
-                       'Cluster', name, region,
-                       name, region, node_type, engine, engine_version,
-                       num_nodes, subnet_group, cache_security_groups,
-                       security_group_ids, [snapshot], snapshot_optional,
-                       preferred_availability_zone,
-                       preferred_maintenance_window, notification_topic_arn,
-                       notification_topic_status, parameter_group, port,
-                       auto_minor_version_upgrade, preserve_nodes,
-                       remove_nodes, apply_immediately, __opts__['test'])
+    return __salt__['aws_util.run_aws_module'](
+        'elasticache.manage', 'Cluster', name, region, name, region, node_type,
+        engine, engine_version, num_nodes, subnet_group, cache_security_groups,
+        security_group_ids, [snapshot], snapshot_optional,
+        preferred_availability_zone, preferred_maintenance_window,
+        notification_topic_arn, notification_topic_status, parameter_group,
+        port, auto_minor_version_upgrade, preserve_nodes, remove_nodes,
+        apply_immediately, __opts__['test'])
 
 
 def replica(
@@ -183,12 +125,11 @@ def replica(
     The arguments are the same as the ``elasticache.manage`` module
 
     """
-    return _run_module('elasticache.launch_replica',
-                       'Replica Cluster', name, region,
-                       name, region,
-                       replication_group,
-                       preferred_availability_zone=preferred_availability_zone,
-                       test=__opts__['test'])
+    return __salt__['aws_util.run_aws_module'](
+        'elasticache.launch_replica', 'Replica Cluster', name, region, name,
+        region, replication_group,
+        preferred_availability_zone=preferred_availability_zone,
+        test=__opts__['test'])
 
 
 def absent(
@@ -200,8 +141,9 @@ def absent(
     The arguments are the same as the ``elasticache.manage`` module
 
     """
-    return _run_module('elasticache.delete', 'Cluster', name, region,
-                       name, region, test=__opts__['test'])
+    return __salt__['aws_util.run_aws_module'](
+        'elasticache.delete', 'Cluster', name, region, name, region,
+        test=__opts__['test'])
 
 
 def parameter_group(
@@ -217,19 +159,18 @@ def parameter_group(
     ``elasticache.manage_parameter_group`` module
 
     """
-    return _run_module('elasticache.manage_parameter_group',
-                       'Parameter group', name, region,
-                       name, region, family, description, parameters,
-                       __opts__['test'])
+    return __salt__['aws_util.run_aws_module'](
+        'elasticache.manage_parameter_group', 'Parameter group', name, region,
+        name, region, family, description, parameters, __opts__['test'])
 
 
 def parameter_group_absent(
     name,
         region):
     """ Ensure an Elasticache parameter group does not exist """
-    return _run_module('elasticache.delete_parameter_group',
-                       'Parameter group', name, region,
-                       name, region, test=__opts__['test'])
+    return __salt__['aws_util.run_aws_module'](
+        'elasticache.delete_parameter_group', 'Parameter group', name, region,
+        name, region, test=__opts__['test'])
 
 
 def security_group(
@@ -244,18 +185,18 @@ def security_group(
     ``elasticache.manage_security_group`` module
 
     """
-    return _run_module('elasticache.manage_security_group',
-                       'Security group', name, region,
-                       name, region, description, authorized, __opts__['test'])
+    return __salt__['aws_util.run_aws_module'](
+        'elasticache.manage_security_group', 'Security group', name, region,
+        name, region, description, authorized, __opts__['test'])
 
 
 def security_group_absent(
         name,
         region):
     """ Ensure an Elasticache security group does not exist """
-    return _run_module('elasticache.delete_security_group',
-                       'Security group', name, region,
-                       name, region, __opts__['test'])
+    return __salt__['aws_util.run_aws_module'](
+        'elasticache.delete_security_group', 'Security group', name, region,
+        name, region, __opts__['test'])
 
 
 def replication_group(
@@ -270,6 +211,6 @@ def replication_group(
     ``elasticache.manage_replication_group`` module
 
     """
-    return _run_module('elasticache.create_replication_group',
-                       'Replication group', name, region,
-                       name, region, primary, description, __opts__['test'])
+    return __salt__['aws_util.run_aws_module'](
+        'elasticache.create_replication_group', 'Replication group', name,
+        region, name, region, primary, description, __opts__['test'])

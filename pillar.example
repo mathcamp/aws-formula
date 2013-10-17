@@ -26,12 +26,6 @@ aws:
         - my_elb_security_group
         - my_other_elb_security_group
       scheme: internet-facing
-      health_check:
-        target: HTTP:80/health
-        timeout: 3
-        interval: 30
-        healthy_threshold: 4
-        unhealthy_threshold: 2
       policies:
         80:
           type: app
