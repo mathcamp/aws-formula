@@ -143,6 +143,25 @@ def security_group(
         region, description, vpc_id, rules, rules_egress, __opts__['test'])
 
 
+def security_group_present(
+    name,
+    region,
+    description,
+    vpc_id=None):
+    """
+    Ensure a security group with the given name exists
+
+    Unlike ``security_group``, this only ensures that the group exists. It will
+    not manage the rules of the security group.
+
+    Most parameters are described in ``ec2.create_bare_security_group`` module
+
+    """
+    return __salt__['aws_util.run_aws_module'](
+        'ec2.create_bare_security_group', 'Security group', name, region, name,
+        region, description, vpc_id, __opts__['test'])
+
+
 def security_group_absent(
     name,
     region,

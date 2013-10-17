@@ -445,6 +445,54 @@ def create_security_group(
                           aws_key, aws_secret, ec2conn, group)
 
 
+def create_bare_security_group(
+    name,
+    region,
+    description,
+    vpc_id=None,
+    test=False,
+    aws_key=None,
+    aws_secret=None):
+    """
+    Make sure a security group is present
+
+    Parameters
+    ----------
+    name : str
+        Name of the security group
+    region : str
+        The AWS region to create the security group in
+    description : str
+        Short description of the security group
+    vpc_id : str, optional
+        The ID of the VPC to create the security group in
+    test : bool, optional
+        If true, don't actually perform any changes
+    aws_key : str, optional
+        The access key id for AWS. May also be specified as 'aws:key' in a
+        pillar.
+    aws_secret : str, optional
+        The secret access key for AWS. May also be specified as 'aws:secret' in
+        a pillar.
+
+    """
+
+    ec2conn = __salt__['aws_util.ec2conn'](region, aws_key, aws_secret)
+
+    groups = ec2conn.get_all_security_groups()
+    group = None
+    for security_group in groups:
+        if security_group.name == name:
+            group = security_group
+            break
+
+    if group is None:
+        if not test:
+            ec2conn.create_security_group(name, description, vpc_id)
+        return {'action': 'create'}
+    else:
+        return {'action': 'noop'}
+
 def modify_security_group(
         name,
         region,
