@@ -50,6 +50,17 @@ Examples
       - name: old-group
       - region: us-west-1
 
+  .my-keypair:
+    ec2.keypair:
+      - name: mykey
+      - region: us-west-1
+      - content: ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDMiEGksJCy8vo6s16VYVIg/emb3QHvno9Fh0irFjgKMe9Esn73CwQm96AGEMpVzeugMQg2YjpjIk5exdk6aJct66IYiRt+rq05C/IWsFzYvXr5+DBNkepOj9pVxtImTy7boZb9AGXBiMg5YviugbRD0XZSyoA5OZ9UHlqjg1tH5Cdm1Q8RfFi3GOzMtDhHIRojLW0Quf1JfiUGXFqJTdTbWlP+ANe560LvaOhsoxMaAs6xENzOjKqTDf9oXH00oHBUqlSwuJJfrsVpEdcp2BQQstPtG5sReW3UpJT8zl/Y/I0B3+vCt5plsyV77fa0Up8HRrOy00sZ9pzizLyBHip7 stevearc@ubuntu
+
+  .old-keypair:
+    ec2.keypair_absent:
+      - name: oldkey
+      - region: us-west-1
+
 """
 
 # This prevents pylint from yelling at me
