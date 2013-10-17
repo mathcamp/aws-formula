@@ -241,3 +241,25 @@ def security_group_absent(
         ret['result'] = False
         ret['comment'] = "{0}: {1}".format(e.code, e.message),
     return ret
+
+def keypair(
+    name,
+    region,
+    content):
+    """
+    Ensure a keypair exists
+
+    """
+    return __salt__['aws_util.run_aws_module'](
+        'ec2.create_keypair', 'Keypair', name, region, name, region, content,
+        __opts__['test'])
+
+def keypair_absent(
+    name,
+    region):
+    """
+    Ensure a keypair does not exist
+
+    """
+    return __salt__['aws_util.run_aws_module'](
+        'ec2.delete_keypair', 'Keypair', name, region, name, region, __opts__['test'])

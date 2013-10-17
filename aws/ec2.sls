@@ -4,6 +4,9 @@
 
 __pydsl__.set(ordered=True)
 
+for keypair in __pillar__.get('aws', {}).get('keypairs', []):
+    state('keypair-' + keypair['name']).ec2.keypair(**keypair)
+
 for group in __pillar__.get('aws', {}).get('security_groups', []):
     state('security-group-' + group['name']).ec2.security_group(
         name=group['name'],
@@ -50,3 +53,6 @@ for group in __pillar__.get('aws', {}).get('security_groups_absent', []):
     state('security-group-' + group['name']).ec2.security_group_absent(
         name=group['name'],
         region=group['region'])
+
+for keypair in __pillar__.get('aws', {}).get('keypairs_absent', []):
+    state('keypair-' + keypair['name']).ec2.keypair_absent(**keypair)

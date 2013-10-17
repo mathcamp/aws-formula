@@ -388,7 +388,8 @@ def manage_security_group(
         return {'action': 'create'}
     else:
         changes = modify_security_group(name, region, rules, rules_egress,
-                                        None, test, aws_key, aws_secret, ec2conn)
+                                        None, test, aws_key, aws_secret,
+                                        ec2conn)
         changes['action'] = 'modify'
         return changes
 
@@ -555,3 +556,77 @@ def _find_free_name(all_names, name):
         i += 1
         search_name = name + str(i)
     return search_name
+
+def create_keypair(
+    name,
+    region,
+    content,
+    test=False,
+    aws_key=None,
+    aws_secret=None):
+    """
+    Create an EC2 Keypair
+
+    Parameters
+    ----------
+    name : str
+        Name of the keypair
+    region : str
+        The AWS region to create the keypair in
+    content : str
+        The public key
+    test : bool, optional
+        If true, don't actually perform any changes
+    aws_key : str, optional
+        The access key id for AWS. May also be specified as 'aws:key' in a
+        pillar.
+    aws_secret : str, optional
+        The secret access key for AWS. May also be specified as 'aws:secret' in
+        a pillar.
+
+    """
+
+    ec2conn = __salt__['aws_util.ec2conn'](region, aws_key, aws_secret)
+
+    keypair = ec2conn.get_key_pair(name)
+    if keypair is None:
+        if not test:
+            ec2conn.import_key_pair(name, content)
+        return {'action': 'create'}
+    else:
+        return {'action': 'noop'}
+
+def delete_keypair(
+    name,
+    region,
+    test=False,
+    aws_key=None,
+    aws_secret=None):
+    """
+    Delete an EC2 Keypair
+
+    Parameters
+    ----------
+    name : str
+        Name of the keypair
+    region : str
+        The AWS region to create the keypair in
+    test : bool, optional
+        If true, don't actually perform any changes
+    aws_key : str, optional
+        The access key id for AWS. May also be specified as 'aws:key' in a
+        pillar.
+    aws_secret : str, optional
+        The secret access key for AWS. May also be specified as 'aws:secret' in
+        a pillar.
+
+    """
+
+    ec2conn = __salt__['aws_util.ec2conn'](region, aws_key, aws_secret)
+    keypair = ec2conn.get_key_pair(name)
+    if keypair is not None:
+        if not test:
+            ec2conn.delete_key_pair(name)
+        return True
+    else:
+        return False
