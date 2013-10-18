@@ -107,7 +107,7 @@ def managed(
     return __salt__['aws_util.run_aws_module'](
         'elasticache.manage', 'Cluster', name, region, name, region, node_type,
         engine, engine_version, num_nodes, subnet_group, cache_security_groups,
-        security_group_ids, [snapshot], snapshot_optional,
+        security_group_ids, snapshot, snapshot_optional,
         preferred_availability_zone, preferred_maintenance_window,
         notification_topic_arn, notification_topic_status, parameter_group,
         port, auto_minor_version_upgrade, preserve_nodes, remove_nodes,

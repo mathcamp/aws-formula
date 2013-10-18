@@ -278,7 +278,7 @@ def launch(
     subnet_group=None,
     cache_security_groups=None,
     security_group_ids=None,
-    snapshots=None,
+    snapshot=None,
     snapshot_optional=False,
     preferred_availability_zone=None,
     preferred_maintenance_window=None,
@@ -298,7 +298,8 @@ def launch(
     if ecconn is None:
         ecconn = __salt__['aws_util.ecconn'](region, aws_key, aws_secret)
 
-    if snapshots is not None:
+    if snapshot is not None:
+        snapshots = [snapshot]
         if snapshot_optional:
             s3conn = __salt__['aws_util.s3conn'](aws_key, aws_secret)
             # If the snapshot doesn't exist, ignore it
@@ -327,6 +328,8 @@ def launch(
                 snapshots = None
         for i in range(len(snapshots)):
             snapshots[i] = 'arn:aws:s3:::' + snapshots[i]
+    else:
+        snapshots = []
 
     ecconn.create_cache_cluster(
         name,
@@ -431,19 +434,34 @@ def modify(
                                                  else "Disabled")
 
     if not test and changes:
-        ecconn.modify_cache_cluster(
-            name,
-            num_cache_nodes=num_nodes,
-            cache_node_ids_to_remove=to_remove,
-            cache_security_group_names=cache_security_groups,
-            security_group_ids=security_group_ids,
-            preferred_maintenance_window=preferred_maintenance_window,
-            notification_topic_arn=notification_topic_arn,
-            cache_parameter_group_name=parameter_group,
-            notification_topic_status=notification_topic_status,
-            apply_immediately=apply_immediately,
-            engine_version=engine_version,
-            auto_minor_version_upgrade=auto_minor_version_upgrade)
+        group = cache.get('ReplicationGroupId')
+        if group is None:
+            ecconn.modify_cache_cluster(
+                name,
+                num_cache_nodes=num_nodes,
+                cache_node_ids_to_remove=to_remove,
+                cache_security_group_names=cache_security_groups,
+                security_group_ids=security_group_ids,
+                preferred_maintenance_window=preferred_maintenance_window,
+                notification_topic_arn=notification_topic_arn,
+                cache_parameter_group_name=parameter_group,
+                notification_topic_status=notification_topic_status,
+                apply_immediately=apply_immediately,
+                engine_version=engine_version,
+                auto_minor_version_upgrade=auto_minor_version_upgrade)
+        else:
+            ecconn.modify_replication_group(
+                group,
+                cache_security_group_names=cache_security_groups,
+                security_group_ids=security_group_ids,
+                preferred_maintenance_window=preferred_maintenance_window,
+                notification_topic_arn=notification_topic_arn,
+                cache_parameter_group_name=parameter_group,
+                notification_topic_status=notification_topic_status,
+                apply_immediately=apply_immediately,
+                engine_version=engine_version,
+                auto_minor_version_upgrade=auto_minor_version_upgrade,
+            )
 
     return changes
 
@@ -775,7 +793,7 @@ def modify_security_group(
     if ecconn is None:
         ecconn = __salt__['aws_util.ecconn'](region, aws_key, aws_secret)
 
-    ec2conn = __salt__['aws_util.ec2conn'](aws_key, aws_secret)
+    ec2conn = __salt__['aws_util.ec2conn'](region, aws_key, aws_secret)
 
     changes = {}
 
