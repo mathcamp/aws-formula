@@ -21,8 +21,10 @@ import json
 # This prevents pylint from yelling at me
 __salt__ = {}
 
+__virtualname__ = 'elasticache'
+
 def __virtual__():
-    return 'elasticache' if HAS_BOTO else False
+    return __virtualname__ if HAS_BOTO else False
 
 
 def get_cache_cluster(

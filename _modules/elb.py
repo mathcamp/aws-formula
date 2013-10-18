@@ -17,6 +17,8 @@ except ImportError:
 # This prevents pylint from yelling at me
 __salt__ = {}
 
+__virtualname__ = 'elb'
+
 def _convert_server_names(names, region, aws_key=None, aws_secret=None):
     """ Convert a list of server names/instance ids to just instance ids """
     ec2conn = __salt__['aws_util.ec2conn'](region, aws_key, aws_secret)
@@ -53,7 +55,7 @@ def _get_elb(
 
 
 def __virtual__():
-    return 'elb' if HAS_BOTO else False
+    return __virtualname__ if HAS_BOTO else False
 
 
 def manage(

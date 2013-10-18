@@ -21,8 +21,10 @@ __pillar__ = {}
 __opts__ = {}
 __salt__ = {}
 
+__virtualname__ = 'aws_util'
+
 def __virtual__():
-    return 'aws_util' if HAS_BOTO else False
+    return __virtualname__ if HAS_BOTO else False
 
 
 def get_credentials(aws_key=None, aws_secret=None):

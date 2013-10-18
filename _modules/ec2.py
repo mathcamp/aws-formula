@@ -18,9 +18,10 @@ except ImportError:
 # This prevents pylint from yelling at me
 __salt__ = {}
 
+__virtualname__ = 'ec2'
 
 def __virtual__():
-    return 'ec2' if HAS_BOTO else False
+    return __virtualname__ if HAS_BOTO else False
 
 
 # EC2 servers
