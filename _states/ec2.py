@@ -186,7 +186,7 @@ def keypair(
 
     """
     return __salt__['aws_util.run_aws_module'](
-        'ec2.create_keypair', 'Keypair', name, region, name, region, content,
+        'ec2.manage_keypair', 'Keypair', name, region, name, region, content,
         __opts__['test'])
 
 

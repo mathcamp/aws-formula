@@ -7,6 +7,7 @@
 Module for manipulating Amazon EC2 servers
 
 """
+import random
 try:
     import boto.ec2
     import boto.exception
@@ -19,6 +20,7 @@ except ImportError:
 __salt__ = {}
 
 __virtualname__ = 'ec2'
+
 
 def __virtual__():
     return __virtualname__ if HAS_BOTO else False
@@ -453,7 +455,7 @@ def create_bare_security_group(
     vpc_id=None,
     test=False,
     aws_key=None,
-    aws_secret=None):
+        aws_secret=None):
     """
     Make sure a security group is present
 
@@ -493,6 +495,7 @@ def create_bare_security_group(
         return {'action': 'create'}
     else:
         return {'action': 'noop'}
+
 
 def modify_security_group(
         name,
@@ -611,7 +614,7 @@ def delete_security_group(
 
 # Key pairs
 
-def create_keypair(
+def manage_keypair(
     name,
     region,
     content,
@@ -619,7 +622,7 @@ def create_keypair(
     aws_key=None,
         aws_secret=None):
     """
-    Create an EC2 Keypair
+    Create or replace an EC2 Keypair
 
     Parameters
     ----------
@@ -648,7 +651,23 @@ def create_keypair(
             ec2conn.import_key_pair(name, content)
         return {'action': 'create'}
     else:
-        return {'action': 'noop'}
+        # We have to upload a test keypair and check the fingerprint because
+        # Amazon uses some sort of weird mutant fingerprint instead of MD5
+        # like EVERYONE ELSE IN THE WORLD
+        testname = 'test' + str(random.randint(0, 1000000))
+        test_keypair = ec2conn.import_key_pair(testname, content)
+        if test_keypair.fingerprint == keypair.fingerprint:
+            ec2conn.delete_key_pair(testname)
+            return {'action': 'noop'}
+        else:
+            ec2conn.delete_key_pair(testname)
+            if not test:
+                ec2conn.delete_key_pair(name)
+                ec2conn.import_key_pair(name, content)
+            return {
+                'action': 'modify',
+                'Replaced': "Keypair '%s' with new content" % name,
+            }
 
 
 def delete_keypair(
