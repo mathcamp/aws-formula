@@ -324,8 +324,6 @@ def launch(
                         key.add_email_grant('READ',
                                             'aws-scs-s3-readonly@amazon.com')
                     i += 1
-            if len(snapshots) == 0:
-                snapshots = None
         for i in range(len(snapshots)):
             snapshots[i] = 'arn:aws:s3:::' + snapshots[i]
     else:
